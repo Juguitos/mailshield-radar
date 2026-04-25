@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="light" data-lang="es">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,14 +14,14 @@
       href="https://fonts.googleapis.com/css2?family=Google+Sans+Code:ital,wght@0,300..800;1,300..800&display=swap"
       rel="stylesheet"
     >
-    <link rel="stylesheet" href="./assets/styles.css?v=20260425-2">
+    <link rel="stylesheet" href="./assets/styles.css?v=20260425-3">
   </head>
   <body>
     <main class="app-shell">
       <section class="workspace" aria-labelledby="app-title">
         <header class="masthead">
           <div>
-            <p class="eyebrow">Radar DNS de correo</p>
+            <p class="eyebrow" data-i18n="eyebrow">Radar DNS de correo</p>
             <h1 id="app-title">MailShield Radar</h1>
           </div>
           <div class="masthead-actions">
@@ -35,7 +35,19 @@
               <span class="toggle-track" aria-hidden="true">
                 <span class="toggle-thumb"></span>
               </span>
-              <span id="themeToggleText">Modo oscuro</span>
+              <span id="themeToggleText" data-i18n="themeDark">Modo oscuro</span>
+            </button>
+            <button
+              type="button"
+              class="language-toggle"
+              id="languageToggle"
+              aria-pressed="false"
+              aria-label="Cambiar idioma"
+            >
+              <span class="toggle-track" aria-hidden="true">
+                <span class="toggle-thumb"></span>
+              </span>
+              <span id="languageToggleText">English</span>
             </button>
             <output id="runStatus" class="status-pill" aria-live="polite">Listo</output>
           </div>
@@ -44,7 +56,7 @@
         <form id="auditForm" class="control-panel">
           <div class="domain-row">
             <label class="field domain-field" for="domainInput">
-              <span>Dominio</span>
+              <span data-i18n="domain">Dominio</span>
               <input
                 id="domainInput"
                 name="domain"
@@ -52,40 +64,41 @@
                 inputmode="url"
                 autocomplete="url"
                 placeholder="dominio.com"
+                data-i18n-placeholder="domainPlaceholder"
                 required
               >
             </label>
-            <button class="primary-action" type="submit" id="auditButton">Analizar</button>
-            <button class="secondary-action" type="button" id="sampleButton">Ejemplo</button>
+            <button class="primary-action" type="submit" id="auditButton" data-i18n="analyze">Analizar</button>
+            <button class="secondary-action" type="button" id="sampleButton" data-i18n="sample">Ejemplo</button>
           </div>
 
           <div class="settings-grid">
             <label class="field" for="resolverSelect">
-              <span>Resolver</span>
+              <span data-i18n="resolver">Resolver</span>
               <select id="resolverSelect" name="resolver">
-                <option value="auto">Automatico</option>
+                <option value="auto" data-i18n="automatic">Automatico</option>
                 <option value="google">Google DNS</option>
                 <option value="cloudflare">Cloudflare DNS</option>
               </select>
             </label>
 
             <fieldset class="segmented-field selector-strategy">
-              <legend>Modo DKIM</legend>
+              <legend data-i18n="dkimMode">Modo DKIM</legend>
               <label>
                 <input type="radio" name="selectorStrategy" value="auto" checked>
-                <span>Automatico</span>
+                <span data-i18n="automatic">Automatico</span>
               </label>
               <label>
                 <input type="radio" name="selectorStrategy" value="specific">
-                <span>Especifico</span>
+                <span data-i18n="specific">Especifico</span>
               </label>
             </fieldset>
 
             <label class="field" for="selectorDepth">
-              <span>Cobertura</span>
+              <span data-i18n="coverage">Cobertura</span>
               <select id="selectorDepth" name="selectorDepth">
-                <option value="quick">Rapida</option>
-                <option value="broad">Amplia</option>
+                <option value="quick" data-i18n="quick">Rapida</option>
+                <option value="broad" data-i18n="broad">Amplia</option>
               </select>
             </label>
 
@@ -97,6 +110,7 @@
                 rows="2"
                 spellcheck="false"
                 placeholder="selector1, selector2, google, k1"
+                data-i18n-placeholder="extraSelectorsPlaceholder"
               ></textarea>
             </label>
           </div>
@@ -126,18 +140,18 @@
         </section>
 
         <section id="reportActions" class="report-actions" hidden>
-          <button type="button" class="secondary-action" id="copyReportButton">Copiar resumen</button>
-          <button type="button" class="secondary-action" id="downloadJsonButton">Exportar JSON</button>
-          <button type="button" class="secondary-action" id="downloadMdButton">Exportar MD</button>
+          <button type="button" class="secondary-action" id="copyReportButton" data-i18n="copySummary">Copiar resumen</button>
+          <button type="button" class="secondary-action" id="downloadJsonButton" data-i18n="exportJson">Exportar JSON</button>
+          <button type="button" class="secondary-action" id="downloadMdButton" data-i18n="exportMd">Exportar MD</button>
         </section>
 
         <footer class="site-footer">
-          <span>Hecho por Luis Daniel (Juguitos)</span>
+          <span data-i18n="footerMade">Hecho por Luis Daniel (Juguitos)</span>
           <a href="https://github.com/Juguitos" target="_blank" rel="noreferrer">github.com/Juguitos</a>
         </footer>
       </section>
     </main>
 
-    <script src="./assets/app.js?v=20260425-2" defer></script>
+    <script src="./assets/app.js?v=20260425-3" defer></script>
   </body>
 </html>

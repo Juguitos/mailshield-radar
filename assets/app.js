@@ -73,6 +73,91 @@
     16: "TXT"
   };
 
+  var UI_TEXT = {
+    es: {
+      analyze: "Analizar",
+      automatic: "Automatico",
+      broad: "Amplia",
+      copied: "Resumen copiado",
+      copyFailed: "No se pudo copiar",
+      copySummary: "Copiar resumen",
+      coverage: "Cobertura",
+      darkModeLabel: "Cambiar modo oscuro",
+      dkim: "DKIM",
+      dkimMode: "Modo DKIM",
+      domain: "Dominio",
+      domainInvalid: "Dominio invalido",
+      domainPlaceholder: "dominio.com",
+      dnsError: "Error DNS",
+      dnsRunning: "Consultando DNS",
+      eyebrow: "Radar DNS de correo",
+      exportJson: "Exportar JSON",
+      exportMd: "Exportar MD",
+      extraSelectors: "Selectores extra",
+      extraSelectorsAria: "Selectores DKIM extra",
+      extraSelectorsPlaceholder: "selector1, selector2, google, k1",
+      footerMade: "Hecho por Luis Daniel (Juguitos)",
+      languageLabel: "Cambiar idioma",
+      languageToggle: "English",
+      lightMode: "Modo claro",
+      noAnalysis: "No se pudo completar el analisis.",
+      ready: "Listo",
+      recommendations: "Recomendaciones",
+      recommendationsSubtitle: "Acciones sugeridas al final del analisis.",
+      resolver: "Resolver",
+      sample: "Ejemplo",
+      selectorAria: "Selectores DKIM especificos",
+      selectorLabel: "Selector(es) DKIM",
+      selectorPlaceholder: "selector1, google, k1",
+      selectorRequired: "Selector requerido",
+      selectorRequiredMessage: "Escribe al menos un selector DKIM especifico, por ejemplo selector1 o google.",
+      specific: "Especifico",
+      themeDark: "Modo oscuro",
+      quick: "Rapida"
+    },
+    en: {
+      analyze: "Analyze",
+      automatic: "Automatic",
+      broad: "Broad",
+      copied: "Summary copied",
+      copyFailed: "Could not copy",
+      copySummary: "Copy summary",
+      coverage: "Coverage",
+      darkModeLabel: "Toggle dark mode",
+      dkim: "DKIM",
+      dkimMode: "DKIM mode",
+      domain: "Domain",
+      domainInvalid: "Invalid domain",
+      domainPlaceholder: "domain.com",
+      dnsError: "DNS error",
+      dnsRunning: "Querying DNS",
+      eyebrow: "Mail DNS radar",
+      exportJson: "Export JSON",
+      exportMd: "Export MD",
+      extraSelectors: "Extra selectors",
+      extraSelectorsAria: "Extra DKIM selectors",
+      extraSelectorsPlaceholder: "selector1, selector2, google, k1",
+      footerMade: "Made by Luis Daniel (Juguitos)",
+      languageLabel: "Change language",
+      languageToggle: "Español",
+      lightMode: "Light mode",
+      noAnalysis: "The analysis could not be completed.",
+      ready: "Ready",
+      recommendations: "Recommendations",
+      recommendationsSubtitle: "Suggested actions at the end of the analysis.",
+      resolver: "Resolver",
+      sample: "Sample",
+      selectorAria: "Specific DKIM selectors",
+      selectorLabel: "DKIM selector(s)",
+      selectorPlaceholder: "selector1, google, k1",
+      selectorRequired: "Selector required",
+      selectorRequiredMessage: "Enter at least one specific DKIM selector, for example selector1 or google.",
+      specific: "Specific",
+      themeDark: "Dark mode",
+      quick: "Quick"
+    }
+  };
+
   var els = {
     form: document.getElementById("auditForm"),
     domainInput: document.getElementById("domainInput"),
@@ -85,6 +170,8 @@
     sampleButton: document.getElementById("sampleButton"),
     themeToggle: document.getElementById("themeToggle"),
     themeToggleText: document.getElementById("themeToggleText"),
+    languageToggle: document.getElementById("languageToggle"),
+    languageToggleText: document.getElementById("languageToggleText"),
     summary: document.getElementById("summary"),
     reportActions: document.getElementById("reportActions"),
     copyReportButton: document.getElementById("copyReportButton"),
@@ -101,7 +188,9 @@
   };
 
   var lastReport = null;
+  var currentLang = "es";
 
+  initLanguage();
   initTheme();
   updateSelectorUi();
 
@@ -121,6 +210,11 @@
   els.themeToggle.addEventListener("click", function () {
     var nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
     applyTheme(nextTheme, true);
+  });
+
+  els.languageToggle.addEventListener("click", function () {
+    var nextLang = currentLang === "es" ? "en" : "es";
+    applyLanguage(nextLang, true);
   });
 
   Array.from(document.querySelectorAll('input[name="selectorStrategy"]')).forEach(function (input) {
@@ -151,11 +245,7 @@
       savedTheme = "";
     }
 
-    if (!savedTheme) {
-      savedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    }
-
-    applyTheme(savedTheme, false);
+    applyTheme(savedTheme || "light", false);
   }
 
   function applyTheme(theme, persist) {
@@ -163,7 +253,8 @@
 
     document.documentElement.dataset.theme = normalized;
     els.themeToggle.setAttribute("aria-pressed", normalized === "dark" ? "true" : "false");
-    els.themeToggleText.textContent = normalized === "dark" ? "Modo claro" : "Modo oscuro";
+    els.themeToggle.setAttribute("aria-label", t("darkModeLabel"));
+    els.themeToggleText.textContent = normalized === "dark" ? t("lightMode") : t("themeDark");
 
     if (persist) {
       try {
@@ -174,20 +265,80 @@
     }
   }
 
+  function initLanguage() {
+    var savedLang = "";
+
+    try {
+      savedLang = window.localStorage.getItem("mailshield-lang") || "";
+    } catch (error) {
+      savedLang = "";
+    }
+
+    applyLanguage(savedLang || "es", false);
+  }
+
+  function applyLanguage(lang, persist) {
+    currentLang = lang === "en" ? "en" : "es";
+    document.documentElement.lang = currentLang;
+    document.documentElement.dataset.lang = currentLang;
+    els.languageToggle.setAttribute("aria-pressed", currentLang === "en" ? "true" : "false");
+    els.languageToggle.setAttribute("aria-label", t("languageLabel"));
+    els.languageToggleText.textContent = t("languageToggle");
+    updateStaticText();
+    updateThemeText();
+    updateSelectorUi();
+
+    if (!lastReport) {
+      setStatus("ready", "");
+      clearResults();
+    } else {
+      renderReport(lastReport);
+    }
+
+    if (persist) {
+      try {
+        window.localStorage.setItem("mailshield-lang", currentLang);
+      } catch (error) {
+        return;
+      }
+    }
+  }
+
+  function updateStaticText() {
+    Array.from(document.querySelectorAll("[data-i18n]")).forEach(function (node) {
+      node.textContent = t(node.getAttribute("data-i18n"));
+    });
+
+    Array.from(document.querySelectorAll("[data-i18n-placeholder]")).forEach(function (node) {
+      node.placeholder = t(node.getAttribute("data-i18n-placeholder"));
+    });
+  }
+
+  function updateThemeText() {
+    var isDark = document.documentElement.dataset.theme === "dark";
+
+    els.themeToggle.setAttribute("aria-label", t("darkModeLabel"));
+    els.themeToggleText.textContent = isDark ? t("lightMode") : t("themeDark");
+  }
+
   function updateSelectorUi() {
     var strategy = document.querySelector('input[name="selectorStrategy"]:checked').value;
 
     if (strategy === "specific") {
       els.selectorDepth.disabled = true;
-      els.selectorLabel.textContent = "Selector(es) DKIM";
-      els.customSelectors.placeholder = "selector1, google, k1";
-      els.customSelectors.setAttribute("aria-label", "Selectores DKIM especificos");
+      els.selectorLabel.textContent = t("selectorLabel");
+      els.customSelectors.placeholder = t("selectorPlaceholder");
+      els.customSelectors.setAttribute("aria-label", t("selectorAria"));
     } else {
       els.selectorDepth.disabled = false;
-      els.selectorLabel.textContent = "Selectores extra";
-      els.customSelectors.placeholder = "selector1, selector2, google, k1";
-      els.customSelectors.setAttribute("aria-label", "Selectores DKIM extra");
+      els.selectorLabel.textContent = t("extraSelectors");
+      els.customSelectors.placeholder = t("extraSelectorsPlaceholder");
+      els.customSelectors.setAttribute("aria-label", t("extraSelectorsAria"));
     }
+  }
+
+  function t(key) {
+    return (UI_TEXT[currentLang] && UI_TEXT[currentLang][key]) || UI_TEXT.es[key] || key;
   }
 
   function runAudit() {
@@ -196,7 +347,7 @@
     try {
       domain = normalizeDomain(els.domainInput.value);
     } catch (error) {
-      setStatus("Dominio invalido", "fail");
+      setStatus("domainInvalid", "fail");
       showError(error.message);
       return;
     }
@@ -207,13 +358,13 @@
     var resolver = els.resolverSelect.value;
 
     if (selectorStrategy === "specific" && selectors.length === 0) {
-      setStatus("Selector requerido", "fail");
-      showError("Escribe al menos un selector DKIM especifico, por ejemplo selector1 o google.");
+      setStatus("selectorRequired", "fail");
+      showError(t("selectorRequiredMessage"));
       return;
     }
 
     setLoading(true);
-    setStatus("Consultando DNS", "running");
+    setStatus("dnsRunning", "running");
     clearResults();
     renderDkimProgress(0, selectors.length, []);
 
@@ -224,11 +375,11 @@
       .then(function (report) {
         lastReport = report;
         renderReport(report);
-        setStatus("Analisis listo", "");
+        setStatus("ready", "");
       })
       .catch(function (error) {
-        setStatus("Error DNS", "fail");
-        showError(error.message || "No se pudo completar el analisis.");
+        setStatus("dnsError", "fail");
+        showError(error.message || t("noAnalysis"));
       })
       .finally(function () {
         setLoading(false);
@@ -1016,6 +1167,208 @@
     return "Control opcional: evalua si aporta valor para el dominio.";
   }
 
+  function localizeText(value) {
+    var text = String(value == null ? "" : value);
+    var exact;
+    var match;
+
+    if (currentLang !== "en") return text;
+
+    exact = {
+      "Acciones sugeridas al final del analisis.": "Suggested actions at the end of the analysis.",
+      "Alineacion estricta para DKIM y SPF.": "Strict alignment is enabled for DKIM and SPF.",
+      "Complementos": "Extras",
+      "Control opcional: evalua si aporta valor para el dominio.": "Optional control: evaluate whether it adds value for the domain.",
+      "DKIM": "DKIM",
+      "DKIM activo": "DKIM active",
+      "DKIM con observaciones": "DKIM with notes",
+      "DKIM detectado con observaciones.": "DKIM was detected with notes.",
+      "DMARC": "DMARC",
+      "DMARC requiere un solo registro en _dmarc.": "DMARC requires a single record at _dmarc.",
+      "El dominio anuncia recepcion de correo.": "The domain advertises mail reception.",
+      "El mecanismo -all cierra la politica con rechazo SPF.": "The -all mechanism closes the policy with SPF rejection.",
+      "El mecanismo ptr es costoso y suele evitarse en SPF moderno.": "The ptr mechanism is expensive and is usually avoided in modern SPF.",
+      "El tag p es obligatorio en DMARC.": "The p tag is required in DMARC.",
+      "Error al consultar selector": "Error querying selector",
+      "Escribe un dominio.": "Enter a domain.",
+      "Falla": "Fail",
+      "Falta": "Missing",
+      "Hay multiples registros SPF.": "There are multiple SPF records.",
+      "Hereda p": "Inherits p",
+      "La llave publica falta o esta vacia; puede ser un selector revocado.": "The public key is missing or empty; this may be a revoked selector.",
+      "La politica esta cerca del limite de 10 consultas DNS de SPF.": "The policy is close to the 10 DNS lookup SPF limit.",
+      "La politica supera el limite teorico de 10 consultas DNS de SPF.": "The policy exceeds the theoretical 10 DNS lookup SPF limit.",
+      "Los servidores receptores no tienen una politica SPF que evaluar.": "Receiving servers do not have an SPF policy to evaluate.",
+      "MailShield Radar": "MailShield Radar",
+      "MTA-STS / TLS-RPT / BIMI": "MTA-STS / TLS-RPT / BIMI",
+      "Multiples TXT DKIM para el mismo selector.": "Multiple DKIM TXT records exist for the same selector.",
+      "MX": "MX",
+      "Ninguno": "None",
+      "No hay hallazgos criticos en los controles revisados.": "No critical findings were detected in the reviewed controls.",
+      "No publicado": "Not published",
+      "No se detectaron riesgos basicos en la politica SPF.": "No basic risks were detected in the SPF policy.",
+      "No se detecto mecanismo all al final de la politica.": "No all mechanism was detected at the end of the policy.",
+      "No se pudo consultar DNS.": "Could not query DNS.",
+      "No se encontro DKIM con los selectores probados.": "No DKIM record was found with the tested selectors.",
+      "No se encontro DKIM en los selectores indicados.": "No DKIM record was found in the provided selectors.",
+      "No se encontro DMARC.": "No DMARC record was found.",
+      "No se encontro SPF en el dominio raiz.": "No SPF record was found at the root domain.",
+      "No se encontraron registros MX.": "No MX records were found.",
+      "No hay rua para recibir reportes agregados.": "No rua tag is present to receive aggregate reports.",
+      "No publicado en default._bimi": "Not published at default._bimi",
+      "No se encontraron selectores DKIM con respuesta.": "No DKIM selectors responded.",
+      "OK": "OK",
+      "Politica DMARC publicada.": "DMARC policy is published.",
+      "Publicado": "Published",
+      "Recomendaciones": "Recommendations",
+      "Registros SPF": "SPF records",
+      "Consultas SPF": "SPF lookups",
+      "TXT revisados": "TXT checked",
+      "Includes": "Includes",
+      "Nombre": "Name",
+      "Alineacion": "Alignment",
+      "SPF": "SPF",
+      "SPF requiere un solo registro v=spf1 por dominio.": "SPF requires a single v=spf1 record per domain.",
+      "Sin MX, el dominio no anuncia servidores de recepcion.": "Without MX, the domain does not advertise receiving mail servers.",
+      "Sin TXT DKIM": "No DKIM TXT",
+      "Un registro SPF publicado.": "One SPF record is published.",
+      "Usa un dominio como dominio.com o sub.dominio.com.": "Use a domain like domain.com or sub.domain.com.",
+      "+all permite cualquier origen y anula el valor de SPF.": "+all allows any source and defeats the value of SPF.",
+      "?all deja la politica en neutral.": "?all leaves the policy neutral.",
+      "~all es tolerante; -all es mas estricto cuando el inventario esta cerrado.": "~all is tolerant; -all is stricter once the sender inventory is complete.",
+      "p=none monitorea, pero no aplica cuarentena ni rechazo.": "p=none monitors but does not apply quarantine or rejection.",
+      "p=quarantine reduce abuso, aunque p=reject ofrece mayor bloqueo.": "p=quarantine reduces abuse, although p=reject provides stronger blocking.",
+      "p=reject aplica la politica DMARC mas estricta.": "p=reject applies the strictest DMARC policy.",
+      "t=y marca el selector en modo prueba.": "t=y marks the selector as test mode."
+    };
+
+    if (exact[text]) return exact[text];
+
+    match = text.match(/^Falta _dmarc\.(.+) con v=DMARC1\.$/);
+    if (match) return "Missing _dmarc." + match[1] + " with v=DMARC1.";
+
+    match = text.match(/^DMARC requiere un solo registro en _dmarc\.(.+)\.$/);
+    if (match) return "DMARC requires a single record at _dmarc." + match[1] + ".";
+
+    match = text.match(/^La politica DMARC p=(.+) no es valida\.$/);
+    if (match) return "The DMARC policy p=" + match[1] + " is not valid.";
+
+    match = text.match(/^pct=(.+) aplica DMARC solo a una parte del trafico\.$/);
+    if (match) return "pct=" + match[1] + " applies DMARC to only part of the traffic.";
+
+    match = text.match(/^Alineacion relajada: adkim=(.+), aspf=(.+)\.$/);
+    if (match) return "Relaxed alignment: adkim=" + match[1] + ", aspf=" + match[2] + ".";
+
+    match = text.match(/^DKIM activo en (\d+) selector\(es\)\.$/);
+    if (match) return "DKIM active on " + match[1] + " selector(s).";
+
+    match = text.match(/^Llave publicada \((\d+) caracteres\)\.$/);
+    if (match) return "Key published (" + match[1] + " characters).";
+
+    match = text.match(/^Tipo de llave no habitual: (.+)\.$/);
+    if (match) return "Unusual key type: " + match[1] + ".";
+
+    match = text.match(/^CNAME a (.+)\.$/);
+    if (match) return "CNAME to " + match[1] + ".";
+
+    match = text.match(/^(\d+) servidor\(es\) MX publicado\(s\)\.$/);
+    if (match) return match[1] + " MX server(s) published.";
+
+    match = text.match(/^(\d+) control\(es\) opcional\(es\) publicado\(s\)\.$/);
+    if (match) return match[1] + " optional control(s) published.";
+
+    match = text.match(/^No publicado en (.+)$/);
+    if (match) return "Not published at " + match[1];
+
+    match = text.match(/^Tiempo agotado consultando (.+)\.$/);
+    if (match) return "Timeout querying " + match[1] + ".";
+
+    match = text.match(/^(.+) respondio HTTP (.+)\.$/);
+    if (match) return match[1] + " returned HTTP " + match[2] + ".";
+
+    match = text.match(/^Resolver no soportado: (.+)$/);
+    if (match) return "Unsupported resolver: " + match[1];
+
+    match = text.match(/^Confirma que el selector escrito exista y publica un TXT en selector\._domainkey\.(.+)\.$/);
+    if (match) return "Confirm the provided selector exists and publish a TXT record at selector._domainkey." + match[1] + ".";
+
+    if (text === "Agrega el selector real del proveedor o publica DKIM para los sistemas que envian correo por este dominio.") {
+      return "Add the real provider selector or publish DKIM for the systems that send mail for this domain.";
+    }
+    match = text.match(/^Revisa el TXT del selector (.+) y evita llaves vacias, modo prueba o registros duplicados\.$/);
+    if (match) return "Review the TXT record for selector " + match[1] + " and avoid empty keys, test mode, or duplicate records.";
+    if (text === "Considera publicar MTA-STS para indicar a otros servidores que usen TLS al entregar correo.") {
+      return "Consider publishing MTA-STS to tell other servers to use TLS when delivering mail.";
+    }
+    if (text === "Considera publicar TLS-RPT para recibir reportes de fallas de entrega con TLS.") {
+      return "Consider publishing TLS-RPT to receive reports about TLS delivery failures.";
+    }
+    if (text === "BIMI es opcional; publicalo cuando DMARC este en enforcement y tengas logo/VMC listos.") {
+      return "BIMI is optional; publish it when DMARC is enforced and your logo/VMC are ready.";
+    }
+    if (text === "Mantén inventario de proveedores de correo y revisa estos registros despues de cualquier cambio de envio.") {
+      return "Maintain an inventory of mail providers and review these records after any sending change.";
+    }
+    if (text === "Fusiona todos los mecanismos autorizados en un solo registro v=spf1.") {
+      return "Merge all authorized mechanisms into a single v=spf1 record.";
+    }
+    if (text === "Sustituye +all por -all o ~all despues de validar todos los remitentes legitimos.") {
+      return "Replace +all with -all or ~all after validating all legitimate senders.";
+    }
+    if (text === "Cuando el inventario de envio este completo, endurece la politica hacia -all.") {
+      return "When the sending inventory is complete, harden the policy to -all.";
+    }
+    if (text === "Reduce includes anidados, elimina proveedores no usados o usa subdominios separados para no romper SPF.") {
+      return "Reduce nested includes, remove unused providers, or use separate subdomains to avoid breaking SPF.";
+    }
+    if (text === "Reemplaza ptr por ip4, ip6, a, mx o include de proveedor documentado.") {
+      return "Replace ptr with ip4, ip6, a, mx, or a documented provider include.";
+    }
+    if (text === "Publica un unico SPF con los proveedores autorizados y un mecanismo all explicito.") {
+      return "Publish a single SPF record with authorized providers and an explicit all mechanism.";
+    }
+    if (text === "Publica _dmarc con v=DMARC1, un correo rua y una politica inicial p=none para monitorear.") {
+      return "Publish _dmarc with v=DMARC1, a rua mailbox, and an initial p=none policy for monitoring.";
+    }
+    if (text === "Usa los reportes rua para validar alineacion y avanza gradualmente a quarantine o reject.") {
+      return "Use rua reports to validate alignment and gradually move to quarantine or reject.";
+    }
+    if (text === "Cuando no haya falsos positivos, cambia a p=reject para bloquear suplantacion.") {
+      return "When there are no false positives, move to p=reject to block spoofing.";
+    }
+    if (text === "Sube pct a 100 cuando la politica ya no afecte correo legitimo.") {
+      return "Raise pct to 100 when the policy no longer affects legitimate mail.";
+    }
+    if (text === "Agrega rua=mailto:reportes@tu-dominio para recibir reportes agregados.") {
+      return "Add rua=mailto:reports@your-domain to receive aggregate reports.";
+    }
+    if (text === "Evalua adkim=s y aspf=s cuando todos los proveedores usen dominios alineados.") {
+      return "Evaluate adkim=s and aspf=s when all providers use aligned domains.";
+    }
+    if (text === "Asegura una sola politica DMARC valida con reportes y una ruta clara hacia reject.") {
+      return "Ensure a single valid DMARC policy with reports and a clear path toward reject.";
+    }
+    if (text === "Publica registros MX validos o separa este dominio si solo se usa para envio sin recepcion.") {
+      return "Publish valid MX records or separate this domain if it is only used for sending without receiving.";
+    }
+    if (text === "Corrige este hallazgo antes de considerar el dominio protegido.") {
+      return "Fix this finding before considering the domain protected.";
+    }
+    if (text === "Revisa este punto y documenta la decision operativa.") {
+      return "Review this point and document the operational decision.";
+    }
+
+    return text;
+  }
+
+  function localizeDkimToolbar(found, missingCount) {
+    if (currentLang === "en") {
+      return found + " found · " + missingCount + " no response";
+    }
+
+    return found + " encontrados · " + missingCount + " sin respuesta";
+  }
+
   function renderReport(report) {
     renderSummary(report);
     renderStandardPanel(els.panels.spf, report.spf);
@@ -1030,15 +1383,15 @@
   function renderSummary(report) {
     var cards = [
       { label: "Score", value: report.score + "/100", detail: report.domain, status: scoreStatus(report.score) },
-      { label: "SPF", value: statusLabel(report.spf.status), detail: report.spf.message, status: report.spf.status },
-      { label: "DMARC", value: statusLabel(report.dmarc.status), detail: report.dmarc.message, status: report.dmarc.status },
+      { label: "SPF", value: statusLabel(report.spf.status), detail: localizeText(report.spf.message), status: report.spf.status },
+      { label: "DMARC", value: statusLabel(report.dmarc.status), detail: localizeText(report.dmarc.message), status: report.dmarc.status },
       {
         label: "DKIM",
         value: report.dkim.found + "/" + report.dkim.checked,
-        detail: report.dkim.message,
+        detail: localizeText(report.dkim.message),
         status: report.dkim.status
       },
-      { label: "MX", value: statusLabel(report.mx.status), detail: report.mx.message, status: report.mx.status }
+      { label: "MX", value: statusLabel(report.mx.status), detail: localizeText(report.mx.message), status: report.mx.status }
     ];
 
     els.summary.innerHTML = cards
@@ -1105,7 +1458,7 @@
             '"></span><div><strong>' +
             escapeHtml(check.label) +
             '</strong><div class="muted-text">' +
-            escapeHtml(check.message) +
+            escapeHtml(localizeText(check.message)) +
             " · " +
             escapeHtml(check.name) +
             "</div>" +
@@ -1119,7 +1472,7 @@
 
   function renderRecommendationsPanel(recommendations) {
     els.panels.recommendations.innerHTML =
-      renderPanelHead("Recomendaciones", "Acciones sugeridas al final del analisis.", recommendations.length ? "info" : "pass") +
+      renderPanelHead(t("recommendations"), t("recommendationsSubtitle"), recommendations.length ? "info" : "pass") +
       '<div class="panel-body">' +
       '<ul class="recommendation-list">' +
       recommendations
@@ -1129,11 +1482,11 @@
             '<div><span class="badge ' +
             item.status +
             '">' +
-            escapeHtml(item.area) +
+            escapeHtml(localizeText(item.area)) +
             '</span></div><div class="recommendation-body"><strong>' +
-            escapeHtml(item.finding) +
+            escapeHtml(localizeText(item.finding)) +
             '</strong><span class="recommendation-text">' +
-            escapeHtml(item.recommendation) +
+            escapeHtml(localizeText(item.recommendation)) +
             "</span></div></li>"
           );
         })
@@ -1155,7 +1508,7 @@
       renderPanelHead(result.title, result.message, result.status) +
       '<div class="panel-body">' +
       '<div class="dkim-toolbar"><strong>' +
-      escapeHtml(result.found + " encontrados · " + missingCount + " sin respuesta") +
+      escapeHtml(localizeDkimToolbar(result.found, missingCount)) +
       '</strong><div class="progress" aria-hidden="true"><span style="--progress: 100%"></span></div></div>' +
       '<ul class="dkim-list">' +
       visible
@@ -1165,7 +1518,7 @@
             '<div class="dkim-selector">' +
             escapeHtml(item.selector) +
             '</div><div class="dkim-detail"><strong>' +
-            escapeHtml(item.summary) +
+            escapeHtml(localizeText(item.summary)) +
             '</strong><span class="muted-text">' +
             escapeHtml(item.name) +
             "</span>" +
@@ -1186,7 +1539,7 @@
     var percent = total === 0 ? 0 : Math.round((done / total) * 100);
 
     els.panels.dkim.innerHTML =
-      renderPanelHead("DKIM", "En progreso.", "info") +
+      renderPanelHead("DKIM", currentLang === "en" ? "In progress." : "En progreso.", "info") +
       '<div class="panel-body"><div class="dkim-toolbar"><strong>' +
       escapeHtml(done + " / " + total) +
       '</strong><div class="progress" aria-hidden="true"><span style="--progress: ' +
@@ -1215,7 +1568,7 @@
       '<ul class="compact-list">' +
       notes
         .map(function (note) {
-          return '<li class="record"><code>' + escapeHtml(note) + "</code></li>";
+          return '<li class="record"><code>' + escapeHtml(localizeText(note)) + "</code></li>";
         })
         .join("") +
       "</ul>"
@@ -1225,9 +1578,9 @@
   function renderPanelHead(title, subtitle, status) {
     return (
       '<div class="panel-head"><div><h2 class="panel-title">' +
-      escapeHtml(title) +
+      escapeHtml(localizeText(title)) +
       '</h2><p class="panel-subtitle">' +
-      escapeHtml(subtitle) +
+      escapeHtml(localizeText(subtitle)) +
       '</p></div><span class="badge ' +
       status +
       '">' +
@@ -1245,9 +1598,9 @@
         .map(function (item) {
           return (
             '<div class="meta-item"><div class="meta-label">' +
-            escapeHtml(item.label) +
+            escapeHtml(localizeText(item.label)) +
             '</div><div class="meta-value">' +
-            escapeHtml(item.value) +
+            escapeHtml(localizeText(item.value)) +
             "</div></div>"
           );
         })
@@ -1267,7 +1620,7 @@
             '<li class="finding"><span class="status-dot ' +
             finding.status +
             '"></span><span>' +
-            escapeHtml(finding.text) +
+            escapeHtml(localizeText(finding.text)) +
             "</span></li>"
           );
         })
@@ -1307,16 +1660,16 @@
     els.panels.dkim.innerHTML = '<div class="empty-state">DKIM</div>';
     els.panels.mx.innerHTML = '<div class="empty-state">MX</div>';
     els.panels.extras.innerHTML = '<div class="empty-state">MTA-STS / TLS-RPT / BIMI</div>';
-    els.panels.recommendations.innerHTML = '<div class="empty-state">Recomendaciones</div>';
+    els.panels.recommendations.innerHTML = '<div class="empty-state">' + escapeHtml(t("recommendations")) + "</div>";
   }
 
   function showError(message) {
     clearResults();
-    els.panels.spf.innerHTML = '<div class="panel-body"><div class="error-box">' + escapeHtml(message) + "</div></div>";
+    els.panels.spf.innerHTML = '<div class="panel-body"><div class="error-box">' + escapeHtml(localizeText(message)) + "</div></div>";
   }
 
   function setStatus(text, tone) {
-    els.runStatus.textContent = text;
+    els.runStatus.textContent = UI_TEXT[currentLang] && UI_TEXT[currentLang][text] ? t(text) : localizeText(text);
     els.runStatus.className = "status-pill" + (tone ? " " + tone : "");
   }
 
@@ -1333,8 +1686,8 @@
 
   function statusLabel(status) {
     if (status === "pass") return "OK";
-    if (status === "warn") return "Aviso";
-    if (status === "fail") return "Falla";
+    if (status === "warn") return currentLang === "en" ? "Warning" : "Aviso";
+    if (status === "fail") return currentLang === "en" ? "Fail" : "Falla";
     return "Info";
   }
 
@@ -1359,11 +1712,13 @@
 
   function buildTextReport(report) {
     var exportReport = buildExportReport(report);
+    var domainLabel = currentLang === "en" ? "Domain" : "Dominio";
+    var dateLabel = currentLang === "en" ? "Date" : "Fecha";
 
     return [
       "MailShield Radar",
-      "Dominio: " + exportReport.domain,
-      "Fecha: " + exportReport.checkedAt,
+      domainLabel + ": " + exportReport.domain,
+      dateLabel + ": " + exportReport.checkedAt,
       "Score: " + exportReport.score + "/100",
       "SPF: " + statusLabel(exportReport.spf.status) + " - " + exportReport.spf.message,
       "DMARC: " + statusLabel(exportReport.dmarc.status) + " - " + exportReport.dmarc.message,
@@ -1375,9 +1730,9 @@
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
-      setStatus("Resumen copiado", "");
+      setStatus("copied", "");
     } catch (error) {
-      setStatus("No se pudo copiar", "fail");
+      setStatus("copyFailed", "fail");
     }
   }
 
@@ -1409,6 +1764,7 @@
   function buildExportReport(report) {
     return {
       app: "MailShield Radar",
+      language: currentLang,
       domain: report.domain,
       checkedAt: report.checkedAt,
       resolver: report.resolver,
@@ -1418,18 +1774,27 @@
       dkim: compactDkimResult(report.dkim),
       mx: compactMxResult(report.mx),
       extras: compactExtrasResult(report.extras),
-      recommendations: report.recommendations || []
+      recommendations: (report.recommendations || []).map(function (item) {
+        return {
+          area: localizeText(item.area),
+          status: item.status,
+          statusLabel: statusLabel(item.status),
+          finding: localizeText(item.finding),
+          recommendation: localizeText(item.recommendation)
+        };
+      })
     };
   }
 
   function compactStandardResult(result) {
     var output = {
       status: result.status,
-      message: result.message,
-      findings: result.findings || []
+      statusLabel: statusLabel(result.status),
+      message: localizeText(result.message),
+      findings: (result.findings || []).map(localizeFinding)
     };
 
-    if (result.meta && result.meta.length) output.meta = result.meta;
+    if (result.meta && result.meta.length) output.meta = result.meta.map(localizeMeta);
     if (result.records && result.records.length) output.records = compactTxtRecords(result.records);
 
     return output;
@@ -1438,8 +1803,9 @@
   function compactMxResult(result) {
     return {
       status: result.status,
-      message: result.message,
-      findings: result.findings || [],
+      statusLabel: statusLabel(result.status),
+      message: localizeText(result.message),
+      findings: (result.findings || []).map(localizeFinding),
       records: result.records || []
     };
   }
@@ -1450,7 +1816,8 @@
     });
     var output = {
       status: result.status,
-      message: result.message,
+      statusLabel: statusLabel(result.status),
+      message: localizeText(result.message),
       mode: result.mode,
       checked: result.checked,
       found: result.found,
@@ -1466,14 +1833,15 @@
         selector: item.selector,
         name: item.name,
         status: item.status,
-        summary: item.summary
+        statusLabel: statusLabel(item.status),
+        summary: localizeText(item.summary)
       };
 
       if (item.records && item.records.length) selector.records = compactTxtRecords(item.records);
       if (item.cnames && item.cnames.length) selector.cnames = item.cnames;
-      if (item.notes && item.notes.length) selector.notes = item.notes;
+      if (item.notes && item.notes.length) selector.notes = item.notes.map(localizeText);
       if (item.tags) selector.tags = item.tags;
-      if (item.error) selector.error = item.error;
+      if (item.error) selector.error = localizeText(item.error);
 
       return selector;
     });
@@ -1488,13 +1856,15 @@
 
     return {
       status: result.status,
-      message: result.message,
+      statusLabel: statusLabel(result.status),
+      message: localizeText(result.message),
       published: published.map(function (check) {
         return {
           label: check.label,
           name: check.name,
           status: check.status,
-          message: check.message,
+          statusLabel: statusLabel(check.status),
+          message: localizeText(check.message),
           records: compactTxtRecords(check.records || [])
         };
       })
@@ -1511,59 +1881,106 @@
     });
   }
 
+  function localizeFinding(finding) {
+    return {
+      status: finding.status,
+      statusLabel: statusLabel(finding.status),
+      text: localizeText(finding.text)
+    };
+  }
+
+  function localizeMeta(item) {
+    return {
+      label: localizeText(item.label),
+      value: localizeText(item.value)
+    };
+  }
+
   function buildMarkdownReport(report) {
     var data = buildExportReport(report);
+    var labels =
+      currentLang === "en"
+        ? {
+            domain: "Domain",
+            checkedAt: "Checked at",
+            resolver: "Resolver",
+            score: "Score",
+            findings: "Findings",
+            records: "Records",
+            notes: "Notes",
+            name: "Name",
+            status: "Status",
+            summary: "Summary",
+            noDkim: "No DKIM selectors responded.",
+            noExtras: "No optional extras were found.",
+            recommendations: "Recommendations"
+          }
+        : {
+            domain: "Dominio",
+            checkedAt: "Fecha",
+            resolver: "Resolver",
+            score: "Score",
+            findings: "Hallazgos",
+            records: "Registros",
+            notes: "Notas",
+            name: "Nombre",
+            status: "Estado",
+            summary: "Resumen",
+            noDkim: "No se encontraron selectores DKIM con respuesta.",
+            noExtras: "No se encontraron complementos opcionales publicados.",
+            recommendations: "Recomendaciones"
+          };
     var lines = [
       "# MailShield Radar",
       "",
-      "- Dominio: `" + data.domain + "`",
-      "- Fecha: `" + data.checkedAt + "`",
-      "- Resolver: `" + data.resolver + "`",
-      "- Score: `" + data.score + "/100`",
+      "- " + labels.domain + ": `" + data.domain + "`",
+      "- " + labels.checkedAt + ": `" + data.checkedAt + "`",
+      "- " + labels.resolver + ": `" + data.resolver + "`",
+      "- " + labels.score + ": `" + data.score + "/100`",
       "",
       "## SPF",
       "",
-      statusLine(data.spf)
+      statusLine(data.spf, labels)
     ];
 
-    appendFindings(lines, data.spf.findings);
-    appendTxtRecords(lines, data.spf.records || []);
+    appendFindings(lines, data.spf.findings, labels);
+    appendTxtRecords(lines, data.spf.records || [], labels);
 
-    lines.push("", "## DKIM", "", statusLine(data.dkim));
+    lines.push("", "## DKIM", "", statusLine(data.dkim, labels));
     if (data.dkim.selectors && data.dkim.selectors.length) {
       data.dkim.selectors.forEach(function (selector) {
-        lines.push("", "### " + selector.selector, "", "- Estado: `" + statusLabel(selector.status) + "`", "- Nombre: `" + selector.name + "`");
-        if (selector.notes && selector.notes.length) appendBullets(lines, "Notas", selector.notes);
-        appendTxtRecords(lines, selector.records || []);
+        lines.push("", "### " + selector.selector, "", "- " + labels.status + ": `" + statusLabel(selector.status) + "`", "- " + labels.name + ": `" + selector.name + "`");
+        if (selector.notes && selector.notes.length) appendBullets(lines, labels.notes, selector.notes);
+        appendTxtRecords(lines, selector.records || [], labels);
       });
     } else {
-      lines.push("", "No se encontraron selectores DKIM con respuesta.");
+      lines.push("", labels.noDkim);
     }
 
-    lines.push("", "## DMARC", "", statusLine(data.dmarc));
-    appendFindings(lines, data.dmarc.findings);
-    appendTxtRecords(lines, data.dmarc.records || []);
+    lines.push("", "## DMARC", "", statusLine(data.dmarc, labels));
+    appendFindings(lines, data.dmarc.findings, labels);
+    appendTxtRecords(lines, data.dmarc.records || [], labels);
 
-    lines.push("", "## MX", "", statusLine(data.mx));
-    appendFindings(lines, data.mx.findings);
+    lines.push("", "## MX", "", statusLine(data.mx, labels));
+    appendFindings(lines, data.mx.findings, labels);
     if (data.mx.records && data.mx.records.length) {
-      lines.push("", "Registros:");
+      lines.push("", labels.records + ":");
       data.mx.records.forEach(function (record) {
         lines.push("- `" + record.priority + " " + record.exchange + "`");
       });
     }
 
-    lines.push("", "## Complementos", "", statusLine(data.extras));
+    lines.push("", "## " + localizeText("Complementos"), "", statusLine(data.extras, labels));
     if (data.extras.published.length) {
       data.extras.published.forEach(function (check) {
-        lines.push("", "### " + check.label, "", "- Nombre: `" + check.name + "`", "- Estado: `" + statusLabel(check.status) + "`");
-        appendTxtRecords(lines, check.records || []);
+        lines.push("", "### " + check.label, "", "- " + labels.name + ": `" + check.name + "`", "- " + labels.status + ": `" + statusLabel(check.status) + "`");
+        appendTxtRecords(lines, check.records || [], labels);
       });
     } else {
-      lines.push("", "No se encontraron complementos opcionales publicados.");
+      lines.push("", labels.noExtras);
     }
 
-    lines.push("", "## Recomendaciones", "");
+    lines.push("", "## " + labels.recommendations, "");
     data.recommendations.forEach(function (item) {
       lines.push("- **" + item.area + "** `" + statusLabel(item.status) + "`: " + item.finding + " " + item.recommendation);
     });
@@ -1571,23 +1988,23 @@
     return lines.join("\n") + "\n";
   }
 
-  function statusLine(result) {
-    return "**Estado:** `" + statusLabel(result.status) + "`  \n**Resumen:** " + result.message;
+  function statusLine(result, labels) {
+    return "**" + labels.status + ":** `" + statusLabel(result.status) + "`  \n**" + labels.summary + ":** " + result.message;
   }
 
-  function appendFindings(lines, findings) {
+  function appendFindings(lines, findings, labels) {
     if (!findings || !findings.length) return;
 
-    lines.push("", "Hallazgos:");
+    lines.push("", labels.findings + ":");
     findings.forEach(function (finding) {
       lines.push("- `" + statusLabel(finding.status) + "` " + finding.text);
     });
   }
 
-  function appendTxtRecords(lines, records) {
+  function appendTxtRecords(lines, records, labels) {
     if (!records || !records.length) return;
 
-    lines.push("", "Registros:");
+    lines.push("", labels.records + ":");
     records.forEach(function (record) {
       lines.push("", "```text", record.text, "```");
     });

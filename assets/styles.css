@@ -4,6 +4,7 @@
   --bg: #f3f1ec;
   --surface: #fffdf7;
   --surface-muted: #ebe7dd;
+  --panel-bg: rgba(255, 253, 247, 0.94);
   --record-bg: #fffaf0;
   --ink: #191714;
   --muted: #6a6258;
@@ -27,6 +28,7 @@
   --bg: #101312;
   --surface: #171c1a;
   --surface-muted: #202724;
+  --panel-bg: rgba(23, 28, 26, 0.94);
   --record-bg: #111715;
   --ink: #f2efe6;
   --muted: #b6ada0;
@@ -179,7 +181,7 @@ h1 {
   padding: 18px;
   border: 1px solid var(--ink);
   border-radius: 8px;
-  background: rgba(255, 253, 247, 0.94);
+  background: var(--panel-bg);
   box-shadow: var(--shadow);
 }
 
@@ -313,7 +315,8 @@ textarea:focus {
   box-shadow: var(--button-shadow);
 }
 
-.theme-toggle {
+.theme-toggle,
+.language-toggle {
   display: inline-flex;
   min-height: 38px;
   align-items: center;
@@ -347,7 +350,8 @@ textarea:focus {
   transition: transform 160ms ease;
 }
 
-.theme-toggle[aria-pressed="true"] .toggle-thumb {
+.theme-toggle[aria-pressed="true"] .toggle-thumb,
+.language-toggle[aria-pressed="true"] .toggle-thumb {
   transform: translateX(18px);
 }
 
