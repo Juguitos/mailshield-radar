@@ -78,23 +78,32 @@
     domainInput: document.getElementById("domainInput"),
     resolverSelect: document.getElementById("resolverSelect"),
     customSelectors: document.getElementById("customSelectors"),
+    selectorDepth: document.getElementById("selectorDepth"),
+    selectorLabel: document.getElementById("selectorLabel"),
     runStatus: document.getElementById("runStatus"),
     auditButton: document.getElementById("auditButton"),
     sampleButton: document.getElementById("sampleButton"),
+    themeToggle: document.getElementById("themeToggle"),
+    themeToggleText: document.getElementById("themeToggleText"),
     summary: document.getElementById("summary"),
     reportActions: document.getElementById("reportActions"),
     copyReportButton: document.getElementById("copyReportButton"),
     downloadJsonButton: document.getElementById("downloadJsonButton"),
+    downloadMdButton: document.getElementById("downloadMdButton"),
     panels: {
       spf: document.getElementById("spfPanel"),
       dmarc: document.getElementById("dmarcPanel"),
       dkim: document.getElementById("dkimPanel"),
       mx: document.getElementById("mxPanel"),
-      extras: document.getElementById("extrasPanel")
+      extras: document.getElementById("extrasPanel"),
+      recommendations: document.getElementById("recommendationsPanel")
     }
   };
 
   var lastReport = null;
+
+  initTheme();
+  updateSelectorUi();
 
   els.form.addEventListener("submit", function (event) {
     event.preventDefault();
@@ -103,8 +112,19 @@
 
   els.sampleButton.addEventListener("click", function () {
     els.domainInput.value = "google.com";
-    document.querySelector('input[name="selectorMode"][value="broad"]').checked = true;
+    document.querySelector('input[name="selectorStrategy"][value="auto"]').checked = true;
+    els.selectorDepth.value = "broad";
+    updateSelectorUi();
     runAudit();
+  });
+
+  els.themeToggle.addEventListener("click", function () {
+    var nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(nextTheme, true);
+  });
+
+  Array.from(document.querySelectorAll('input[name="selectorStrategy"]')).forEach(function (input) {
+    input.addEventListener("change", updateSelectorUi);
   });
 
   els.copyReportButton.addEventListener("click", function () {
@@ -117,6 +137,59 @@
     downloadJson(lastReport);
   });
 
+  els.downloadMdButton.addEventListener("click", function () {
+    if (!lastReport) return;
+    downloadMarkdown(lastReport);
+  });
+
+  function initTheme() {
+    var savedTheme = "";
+
+    try {
+      savedTheme = window.localStorage.getItem("mailshield-theme") || "";
+    } catch (error) {
+      savedTheme = "";
+    }
+
+    if (!savedTheme) {
+      savedTheme = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+
+    applyTheme(savedTheme, false);
+  }
+
+  function applyTheme(theme, persist) {
+    var normalized = theme === "dark" ? "dark" : "light";
+
+    document.documentElement.dataset.theme = normalized;
+    els.themeToggle.setAttribute("aria-pressed", normalized === "dark" ? "true" : "false");
+    els.themeToggleText.textContent = normalized === "dark" ? "Modo claro" : "Modo oscuro";
+
+    if (persist) {
+      try {
+        window.localStorage.setItem("mailshield-theme", normalized);
+      } catch (error) {
+        return;
+      }
+    }
+  }
+
+  function updateSelectorUi() {
+    var strategy = document.querySelector('input[name="selectorStrategy"]:checked').value;
+
+    if (strategy === "specific") {
+      els.selectorDepth.disabled = true;
+      els.selectorLabel.textContent = "Selector(es) DKIM";
+      els.customSelectors.placeholder = "selector1, google, k1";
+      els.customSelectors.setAttribute("aria-label", "Selectores DKIM especificos");
+    } else {
+      els.selectorDepth.disabled = false;
+      els.selectorLabel.textContent = "Selectores extra";
+      els.customSelectors.placeholder = "selector1, selector2, google, k1";
+      els.customSelectors.setAttribute("aria-label", "Selectores DKIM extra");
+    }
+  }
+
   function runAudit() {
     var domain;
 
@@ -128,16 +201,26 @@
       return;
     }
 
-    var selectorMode = document.querySelector('input[name="selectorMode"]:checked').value;
-    var selectors = buildSelectorList(selectorMode, els.customSelectors.value);
+    var selectorStrategy = document.querySelector('input[name="selectorStrategy"]:checked').value;
+    var selectorDepth = els.selectorDepth.value;
+    var selectors = buildSelectorList(selectorStrategy, selectorDepth, els.customSelectors.value);
     var resolver = els.resolverSelect.value;
+
+    if (selectorStrategy === "specific" && selectors.length === 0) {
+      setStatus("Selector requerido", "fail");
+      showError("Escribe al menos un selector DKIM especifico, por ejemplo selector1 o google.");
+      return;
+    }
 
     setLoading(true);
     setStatus("Consultando DNS", "running");
     clearResults();
     renderDkimProgress(0, selectors.length, []);
 
-    auditDomain(domain, resolver, selectors)
+    auditDomain(domain, resolver, selectors, {
+      strategy: selectorStrategy,
+      depth: selectorDepth
+    })
       .then(function (report) {
         lastReport = report;
         renderReport(report);
@@ -152,8 +235,9 @@
       });
   }
 
-  async function auditDomain(domain, resolver, selectors) {
+  async function auditDomain(domain, resolver, selectors, selectorConfig) {
     var startedAt = new Date().toISOString();
+    var report;
 
     var foundation = await Promise.all([
       auditSpf(domain, resolver),
@@ -162,9 +246,9 @@
       auditExtras(domain, resolver)
     ]);
 
-    var dkim = await auditDkim(domain, resolver, selectors);
+    var dkim = await auditDkim(domain, resolver, selectors, selectorConfig);
 
-    return {
+    report = {
       domain: domain,
       resolver: resolver,
       checkedAt: startedAt,
@@ -175,6 +259,10 @@
       dkim: dkim,
       score: calculateScore(foundation[0], foundation[1], dkim, foundation[2])
     };
+
+    report.recommendations = buildRecommendations(report);
+
+    return report;
   }
 
   async function auditSpf(domain, resolver) {
@@ -341,7 +429,7 @@
     };
   }
 
-  async function auditDkim(domain, resolver, selectors) {
+  async function auditDkim(domain, resolver, selectors, selectorConfig) {
     var total = selectors.length;
     var complete = 0;
     var results = await mapLimit(selectors, 8, async function (selector) {
@@ -361,7 +449,12 @@
       return item.status === "warn";
     });
     var status = "fail";
-    var message = "No se encontro DKIM con los selectores probados.";
+    var mode = selectorConfig && selectorConfig.strategy === "specific" ? "specific" : "auto";
+    var depth = selectorConfig && selectorConfig.depth ? selectorConfig.depth : "quick";
+    var message =
+      mode === "specific"
+        ? "No se encontro DKIM en los selectores indicados."
+        : "No se encontro DKIM con los selectores probados.";
 
     if (active.length > 0 && warnings.length === 0) {
       status = "pass";
@@ -380,6 +473,8 @@
       title: "DKIM",
       status: status,
       message: message,
+      mode: mode,
+      depth: depth,
       checked: total,
       found: found.length,
       active: active.length,
@@ -704,8 +799,8 @@
     return /^v=DKIM1(\s*;|$)/i.test(text) || /(^|;)\s*p=/i.test(text);
   }
 
-  function buildSelectorList(mode, customText) {
-    var base = mode === "broad" ? BROAD_SELECTORS : QUICK_SELECTORS;
+  function buildSelectorList(strategy, depth, customText) {
+    var base = strategy === "specific" ? [] : depth === "broad" ? BROAD_SELECTORS : QUICK_SELECTORS;
     var custom = customText
       .split(/[\s,;]+/)
       .map(function (item) {
@@ -732,7 +827,7 @@
     }
 
     if (!/^(?=.{1,253}$)(?!-)([a-z0-9-]{1,63}\.)+[a-z0-9-]{2,63}$/.test(value)) {
-      throw new Error("Usa un dominio como empresa.com o sub.empresa.com.");
+      throw new Error("Usa un dominio como dominio.com o sub.dominio.com.");
     }
 
     return value;
@@ -782,6 +877,145 @@
     return rank[candidate] > rank[current] ? candidate : current;
   }
 
+  function buildRecommendations(report) {
+    var items = [];
+
+    collectFindingRecommendations(items, "SPF", report.spf.findings || []);
+    collectFindingRecommendations(items, "DMARC", report.dmarc.findings || []);
+    collectFindingRecommendations(items, "MX", report.mx.findings || []);
+
+    if (report.dkim.found === 0) {
+      items.push({
+        area: "DKIM",
+        status: "fail",
+        finding: report.dkim.message,
+        recommendation:
+          report.dkim.mode === "specific"
+            ? "Confirma que el selector escrito exista y publica un TXT en selector._domainkey." + report.domain + "."
+            : "Agrega el selector real del proveedor o publica DKIM para los sistemas que envian correo por este dominio."
+      });
+    } else {
+      report.dkim.results
+        .filter(function (item) {
+          return item.status === "warn";
+        })
+        .forEach(function (item) {
+          items.push({
+            area: "DKIM",
+            status: "warn",
+            finding: item.selector + ": " + item.summary,
+            recommendation: "Revisa el TXT del selector " + item.selector + " y evita llaves vacias, modo prueba o registros duplicados."
+          });
+        });
+    }
+
+    (report.extras.checks || [])
+      .filter(function (check) {
+        return check.status === "info";
+      })
+      .forEach(function (check) {
+        items.push({
+          area: check.label,
+          status: "info",
+          finding: check.message + " en " + check.name,
+          recommendation: recommendationForOptional(check.label)
+        });
+      });
+
+    if (items.length === 0) {
+      items.push({
+        area: "OK",
+        status: "pass",
+        finding: "No hay hallazgos criticos en los controles revisados.",
+        recommendation: "Mantén inventario de proveedores de correo y revisa estos registros despues de cualquier cambio de envio."
+      });
+    }
+
+    return items;
+  }
+
+  function collectFindingRecommendations(target, area, findings) {
+    findings
+      .filter(function (finding) {
+        return finding.status !== "pass";
+      })
+      .forEach(function (finding) {
+        target.push({
+          area: area,
+          status: finding.status,
+          finding: finding.text,
+          recommendation: recommendationForFinding(area, finding.text, finding.status)
+        });
+      });
+  }
+
+  function recommendationForFinding(area, text, status) {
+    var normalized = text.toLowerCase();
+
+    if (area === "SPF") {
+      if (normalized.indexOf("multiples") !== -1 || normalized.indexOf("un solo registro") !== -1) {
+        return "Fusiona todos los mecanismos autorizados en un solo registro v=spf1.";
+      }
+      if (normalized.indexOf("+all") !== -1) {
+        return "Sustituye +all por -all o ~all despues de validar todos los remitentes legitimos.";
+      }
+      if (normalized.indexOf("?all") !== -1 || normalized.indexOf("~all") !== -1) {
+        return "Cuando el inventario de envio este completo, endurece la politica hacia -all.";
+      }
+      if (normalized.indexOf("10 consultas") !== -1 || normalized.indexOf("cerca del limite") !== -1) {
+        return "Reduce includes anidados, elimina proveedores no usados o usa subdominios separados para no romper SPF.";
+      }
+      if (normalized.indexOf("ptr") !== -1) {
+        return "Reemplaza ptr por ip4, ip6, a, mx o include de proveedor documentado.";
+      }
+      return "Publica un unico SPF con los proveedores autorizados y un mecanismo all explicito.";
+    }
+
+    if (area === "DMARC") {
+      if (normalized.indexOf("no se encontro") !== -1 || normalized.indexOf("falta") !== -1) {
+        return "Publica _dmarc con v=DMARC1, un correo rua y una politica inicial p=none para monitorear.";
+      }
+      if (normalized.indexOf("p=none") !== -1) {
+        return "Usa los reportes rua para validar alineacion y avanza gradualmente a quarantine o reject.";
+      }
+      if (normalized.indexOf("p=quarantine") !== -1) {
+        return "Cuando no haya falsos positivos, cambia a p=reject para bloquear suplantacion.";
+      }
+      if (normalized.indexOf("pct=") !== -1) {
+        return "Sube pct a 100 cuando la politica ya no afecte correo legitimo.";
+      }
+      if (normalized.indexOf("rua") !== -1) {
+        return "Agrega rua=mailto:reportes@tu-dominio para recibir reportes agregados.";
+      }
+      if (normalized.indexOf("alineacion relajada") !== -1) {
+        return "Evalua adkim=s y aspf=s cuando todos los proveedores usen dominios alineados.";
+      }
+      return "Asegura una sola politica DMARC valida con reportes y una ruta clara hacia reject.";
+    }
+
+    if (area === "MX") {
+      return "Publica registros MX validos o separa este dominio si solo se usa para envio sin recepcion.";
+    }
+
+    return status === "fail"
+      ? "Corrige este hallazgo antes de considerar el dominio protegido."
+      : "Revisa este punto y documenta la decision operativa.";
+  }
+
+  function recommendationForOptional(label) {
+    if (label === "MTA-STS") {
+      return "Considera publicar MTA-STS para indicar a otros servidores que usen TLS al entregar correo.";
+    }
+    if (label === "TLS-RPT") {
+      return "Considera publicar TLS-RPT para recibir reportes de fallas de entrega con TLS.";
+    }
+    if (label === "BIMI") {
+      return "BIMI es opcional; publicalo cuando DMARC este en enforcement y tengas logo/VMC listos.";
+    }
+
+    return "Control opcional: evalua si aporta valor para el dominio.";
+  }
+
   function renderReport(report) {
     renderSummary(report);
     renderStandardPanel(els.panels.spf, report.spf);
@@ -789,6 +1023,7 @@
     renderDkimPanel(report.dkim);
     renderMxPanel(report.mx);
     renderExtrasPanel(report.extras);
+    renderRecommendationsPanel(report.recommendations || []);
     els.reportActions.hidden = false;
   }
 
@@ -876,6 +1111,30 @@
             "</div>" +
             renderTxtRecords(check.records || []) +
             "</div></li>"
+          );
+        })
+        .join("") +
+      "</ul></div>";
+  }
+
+  function renderRecommendationsPanel(recommendations) {
+    els.panels.recommendations.innerHTML =
+      renderPanelHead("Recomendaciones", "Acciones sugeridas al final del analisis.", recommendations.length ? "info" : "pass") +
+      '<div class="panel-body">' +
+      '<ul class="recommendation-list">' +
+      recommendations
+        .map(function (item) {
+          return (
+            '<li class="recommendation">' +
+            '<div><span class="badge ' +
+            item.status +
+            '">' +
+            escapeHtml(item.area) +
+            '</span></div><div class="recommendation-body"><strong>' +
+            escapeHtml(item.finding) +
+            '</strong><span class="recommendation-text">' +
+            escapeHtml(item.recommendation) +
+            "</span></div></li>"
           );
         })
         .join("") +
@@ -1048,6 +1307,7 @@
     els.panels.dkim.innerHTML = '<div class="empty-state">DKIM</div>';
     els.panels.mx.innerHTML = '<div class="empty-state">MX</div>';
     els.panels.extras.innerHTML = '<div class="empty-state">MTA-STS / TLS-RPT / BIMI</div>';
+    els.panels.recommendations.innerHTML = '<div class="empty-state">Recomendaciones</div>';
   }
 
   function showError(message) {
@@ -1065,7 +1325,8 @@
     els.sampleButton.disabled = isLoading;
     els.resolverSelect.disabled = isLoading;
     els.customSelectors.disabled = isLoading;
-    Array.from(document.querySelectorAll('input[name="selectorMode"]')).forEach(function (input) {
+    els.selectorDepth.disabled = isLoading || document.querySelector('input[name="selectorStrategy"]:checked').value === "specific";
+    Array.from(document.querySelectorAll('input[name="selectorStrategy"]')).forEach(function (input) {
       input.disabled = isLoading;
     });
   }
@@ -1097,15 +1358,17 @@
   }
 
   function buildTextReport(report) {
+    var exportReport = buildExportReport(report);
+
     return [
       "MailShield Radar",
-      "Dominio: " + report.domain,
-      "Fecha: " + report.checkedAt,
-      "Score: " + report.score + "/100",
-      "SPF: " + statusLabel(report.spf.status) + " - " + report.spf.message,
-      "DMARC: " + statusLabel(report.dmarc.status) + " - " + report.dmarc.message,
-      "DKIM: " + statusLabel(report.dkim.status) + " - " + report.dkim.message,
-      "MX: " + statusLabel(report.mx.status) + " - " + report.mx.message
+      "Dominio: " + exportReport.domain,
+      "Fecha: " + exportReport.checkedAt,
+      "Score: " + exportReport.score + "/100",
+      "SPF: " + statusLabel(exportReport.spf.status) + " - " + exportReport.spf.message,
+      "DMARC: " + statusLabel(exportReport.dmarc.status) + " - " + exportReport.dmarc.message,
+      "DKIM: " + statusLabel(exportReport.dkim.status) + " - " + exportReport.dkim.message,
+      "MX: " + statusLabel(exportReport.mx.status) + " - " + exportReport.mx.message
     ].join("\n");
   }
 
@@ -1119,15 +1382,221 @@
   }
 
   function downloadJson(report) {
-    var blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    downloadBlob(
+      report.domain + "-mailshield-report.json",
+      JSON.stringify(buildExportReport(report), null, 2),
+      "application/json"
+    );
+  }
+
+  function downloadMarkdown(report) {
+    downloadBlob(report.domain + "-mailshield-report.md", buildMarkdownReport(report), "text/markdown");
+  }
+
+  function downloadBlob(filename, content, type) {
+    var blob = new Blob([content], { type: type });
     var url = URL.createObjectURL(blob);
     var link = document.createElement("a");
 
     link.href = url;
-    link.download = report.domain + "-mail-auth-report.json";
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function buildExportReport(report) {
+    return {
+      app: "MailShield Radar",
+      domain: report.domain,
+      checkedAt: report.checkedAt,
+      resolver: report.resolver,
+      score: report.score,
+      spf: compactStandardResult(report.spf),
+      dmarc: compactStandardResult(report.dmarc),
+      dkim: compactDkimResult(report.dkim),
+      mx: compactMxResult(report.mx),
+      extras: compactExtrasResult(report.extras),
+      recommendations: report.recommendations || []
+    };
+  }
+
+  function compactStandardResult(result) {
+    var output = {
+      status: result.status,
+      message: result.message,
+      findings: result.findings || []
+    };
+
+    if (result.meta && result.meta.length) output.meta = result.meta;
+    if (result.records && result.records.length) output.records = compactTxtRecords(result.records);
+
+    return output;
+  }
+
+  function compactMxResult(result) {
+    return {
+      status: result.status,
+      message: result.message,
+      findings: result.findings || [],
+      records: result.records || []
+    };
+  }
+
+  function compactDkimResult(result) {
+    var found = (result.results || []).filter(function (item) {
+      return item.status !== "missing";
+    });
+    var output = {
+      status: result.status,
+      message: result.message,
+      mode: result.mode,
+      checked: result.checked,
+      found: result.found,
+      active: result.active
+    };
+
+    if (found.length === 0) {
+      return output;
+    }
+
+    output.selectors = found.map(function (item) {
+      var selector = {
+        selector: item.selector,
+        name: item.name,
+        status: item.status,
+        summary: item.summary
+      };
+
+      if (item.records && item.records.length) selector.records = compactTxtRecords(item.records);
+      if (item.cnames && item.cnames.length) selector.cnames = item.cnames;
+      if (item.notes && item.notes.length) selector.notes = item.notes;
+      if (item.tags) selector.tags = item.tags;
+      if (item.error) selector.error = item.error;
+
+      return selector;
+    });
+
+    return output;
+  }
+
+  function compactExtrasResult(result) {
+    var published = (result.checks || []).filter(function (check) {
+      return check.status !== "info";
+    });
+
+    return {
+      status: result.status,
+      message: result.message,
+      published: published.map(function (check) {
+        return {
+          label: check.label,
+          name: check.name,
+          status: check.status,
+          message: check.message,
+          records: compactTxtRecords(check.records || [])
+        };
+      })
+    };
+  }
+
+  function compactTxtRecords(records) {
+    return records.map(function (record) {
+      return {
+        name: record.name,
+        ttl: record.ttl,
+        text: record.text
+      };
+    });
+  }
+
+  function buildMarkdownReport(report) {
+    var data = buildExportReport(report);
+    var lines = [
+      "# MailShield Radar",
+      "",
+      "- Dominio: `" + data.domain + "`",
+      "- Fecha: `" + data.checkedAt + "`",
+      "- Resolver: `" + data.resolver + "`",
+      "- Score: `" + data.score + "/100`",
+      "",
+      "## SPF",
+      "",
+      statusLine(data.spf)
+    ];
+
+    appendFindings(lines, data.spf.findings);
+    appendTxtRecords(lines, data.spf.records || []);
+
+    lines.push("", "## DKIM", "", statusLine(data.dkim));
+    if (data.dkim.selectors && data.dkim.selectors.length) {
+      data.dkim.selectors.forEach(function (selector) {
+        lines.push("", "### " + selector.selector, "", "- Estado: `" + statusLabel(selector.status) + "`", "- Nombre: `" + selector.name + "`");
+        if (selector.notes && selector.notes.length) appendBullets(lines, "Notas", selector.notes);
+        appendTxtRecords(lines, selector.records || []);
+      });
+    } else {
+      lines.push("", "No se encontraron selectores DKIM con respuesta.");
+    }
+
+    lines.push("", "## DMARC", "", statusLine(data.dmarc));
+    appendFindings(lines, data.dmarc.findings);
+    appendTxtRecords(lines, data.dmarc.records || []);
+
+    lines.push("", "## MX", "", statusLine(data.mx));
+    appendFindings(lines, data.mx.findings);
+    if (data.mx.records && data.mx.records.length) {
+      lines.push("", "Registros:");
+      data.mx.records.forEach(function (record) {
+        lines.push("- `" + record.priority + " " + record.exchange + "`");
+      });
+    }
+
+    lines.push("", "## Complementos", "", statusLine(data.extras));
+    if (data.extras.published.length) {
+      data.extras.published.forEach(function (check) {
+        lines.push("", "### " + check.label, "", "- Nombre: `" + check.name + "`", "- Estado: `" + statusLabel(check.status) + "`");
+        appendTxtRecords(lines, check.records || []);
+      });
+    } else {
+      lines.push("", "No se encontraron complementos opcionales publicados.");
+    }
+
+    lines.push("", "## Recomendaciones", "");
+    data.recommendations.forEach(function (item) {
+      lines.push("- **" + item.area + "** `" + statusLabel(item.status) + "`: " + item.finding + " " + item.recommendation);
+    });
+
+    return lines.join("\n") + "\n";
+  }
+
+  function statusLine(result) {
+    return "**Estado:** `" + statusLabel(result.status) + "`  \n**Resumen:** " + result.message;
+  }
+
+  function appendFindings(lines, findings) {
+    if (!findings || !findings.length) return;
+
+    lines.push("", "Hallazgos:");
+    findings.forEach(function (finding) {
+      lines.push("- `" + statusLabel(finding.status) + "` " + finding.text);
+    });
+  }
+
+  function appendTxtRecords(lines, records) {
+    if (!records || !records.length) return;
+
+    lines.push("", "Registros:");
+    records.forEach(function (record) {
+      lines.push("", "```text", record.text, "```");
+    });
+  }
+
+  function appendBullets(lines, title, values) {
+    lines.push("", title + ":");
+    values.forEach(function (value) {
+      lines.push("- " + value);
+    });
   }
 })();
