@@ -79,7 +79,10 @@
       automatic: "Automatico",
       broad: "Amplia",
       copied: "Resumen copiado",
+      linkCopied: "Enlace copiado",
+      linkCopyFailed: "No se pudo copiar enlace",
       copyFailed: "No se pudo copiar",
+      copyLink: "Copiar enlace",
       copySummary: "Copiar resumen",
       coverage: "Cobertura",
       darkModeLabel: "Cambiar modo oscuro",
@@ -106,6 +109,8 @@
       recommendationsSubtitle: "Acciones sugeridas al final del analisis.",
       resolver: "Resolver",
       sample: "Ejemplo",
+      score: "Score",
+      scoreSubtitle: "Desglose de puntos por control.",
       selectorAria: "Selectores DKIM especificos",
       selectorLabel: "Selector(es) DKIM",
       selectorPlaceholder: "selector1, google, k1",
@@ -120,7 +125,10 @@
       automatic: "Automatic",
       broad: "Broad",
       copied: "Summary copied",
+      linkCopied: "Link copied",
+      linkCopyFailed: "Could not copy link",
       copyFailed: "Could not copy",
+      copyLink: "Copy link",
       copySummary: "Copy summary",
       coverage: "Coverage",
       darkModeLabel: "Toggle dark mode",
@@ -147,6 +155,8 @@
       recommendationsSubtitle: "Suggested actions at the end of the analysis.",
       resolver: "Resolver",
       sample: "Sample",
+      score: "Score",
+      scoreSubtitle: "Point breakdown by control.",
       selectorAria: "Specific DKIM selectors",
       selectorLabel: "DKIM selector(s)",
       selectorPlaceholder: "selector1, google, k1",
@@ -175,9 +185,11 @@
     summary: document.getElementById("summary"),
     reportActions: document.getElementById("reportActions"),
     copyReportButton: document.getElementById("copyReportButton"),
+    copyLinkButton: document.getElementById("copyLinkButton"),
     downloadJsonButton: document.getElementById("downloadJsonButton"),
     downloadMdButton: document.getElementById("downloadMdButton"),
     panels: {
+      score: document.getElementById("scorePanel"),
       spf: document.getElementById("spfPanel"),
       dmarc: document.getElementById("dmarcPanel"),
       dkim: document.getElementById("dkimPanel"),
@@ -192,6 +204,7 @@
 
   initLanguage();
   initTheme();
+  applyUrlState();
   updateSelectorUi();
 
   els.form.addEventListener("submit", function (event) {
@@ -210,11 +223,13 @@
   els.themeToggle.addEventListener("click", function () {
     var nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
     applyTheme(nextTheme, true);
+    syncShareUrl();
   });
 
   els.languageToggle.addEventListener("click", function () {
     var nextLang = currentLang === "es" ? "en" : "es";
     applyLanguage(nextLang, true);
+    syncShareUrl();
   });
 
   Array.from(document.querySelectorAll('input[name="selectorStrategy"]')).forEach(function (input) {
@@ -224,6 +239,10 @@
   els.copyReportButton.addEventListener("click", function () {
     if (!lastReport) return;
     copyText(buildTextReport(lastReport));
+  });
+
+  els.copyLinkButton.addEventListener("click", function () {
+    copyShareLink();
   });
 
   els.downloadJsonButton.addEventListener("click", function () {
@@ -341,6 +360,76 @@
     return (UI_TEXT[currentLang] && UI_TEXT[currentLang][key]) || UI_TEXT.es[key] || key;
   }
 
+  function applyUrlState() {
+    var params = new URLSearchParams(window.location.search);
+    var lang = params.get("lang");
+    var theme = params.get("theme");
+    var domain = params.get("domain");
+    var resolver = params.get("resolver");
+    var dkim = params.get("dkim");
+    var depth = params.get("depth");
+    var selectors = params.get("selectors");
+
+    if (lang) applyLanguage(lang, false);
+    if (theme) applyTheme(theme, false);
+    if (domain) els.domainInput.value = domain;
+    if (resolver && ["auto", "google", "cloudflare"].indexOf(resolver) !== -1) {
+      els.resolverSelect.value = resolver;
+    }
+    if (dkim && ["auto", "specific"].indexOf(dkim) !== -1) {
+      document.querySelector('input[name="selectorStrategy"][value="' + dkim + '"]').checked = true;
+    }
+    if (depth && ["quick", "broad"].indexOf(depth) !== -1) {
+      els.selectorDepth.value = depth;
+    }
+    if (selectors) {
+      els.customSelectors.value = selectors;
+    }
+
+    updateSelectorUi();
+
+    if (domain) {
+      window.setTimeout(runAudit, 0);
+    }
+  }
+
+  function buildShareUrl(domainOverride) {
+    var url = new URL(window.location.href);
+    var params = new URLSearchParams();
+    var domain = domainOverride || els.domainInput.value.trim();
+    var strategy = document.querySelector('input[name="selectorStrategy"]:checked').value;
+    var selectors = els.customSelectors.value.trim();
+    var theme = document.documentElement.dataset.theme;
+
+    if (domain) params.set("domain", domain);
+    params.set("lang", currentLang);
+    params.set("theme", theme === "dark" ? "dark" : "light");
+    if (els.resolverSelect.value !== "auto") params.set("resolver", els.resolverSelect.value);
+    params.set("dkim", strategy);
+    if (strategy === "auto") params.set("depth", els.selectorDepth.value);
+    if (selectors) params.set("selectors", selectors);
+
+    url.search = params.toString();
+    url.hash = "";
+    return url.toString();
+  }
+
+  function syncShareUrl(domainOverride) {
+    var domain = domainOverride || els.domainInput.value.trim();
+
+    if (!domain || !window.history || !window.history.replaceState) return;
+    window.history.replaceState(null, "", buildShareUrl(domain));
+  }
+
+  async function copyShareLink() {
+    try {
+      await navigator.clipboard.writeText(buildShareUrl(lastReport ? lastReport.domain : ""));
+      setStatus("linkCopied", "");
+    } catch (error) {
+      setStatus("linkCopyFailed", "fail");
+    }
+  }
+
   function runAudit() {
     var domain;
 
@@ -367,6 +456,7 @@
     setStatus("dnsRunning", "running");
     clearResults();
     renderDkimProgress(0, selectors.length, []);
+    syncShareUrl(domain);
 
     auditDomain(domain, resolver, selectors, {
       strategy: selectorStrategy,
@@ -389,6 +479,7 @@
   async function auditDomain(domain, resolver, selectors, selectorConfig) {
     var startedAt = new Date().toISOString();
     var report;
+    var scoreBreakdown;
 
     var foundation = await Promise.all([
       auditSpf(domain, resolver),
@@ -398,6 +489,7 @@
     ]);
 
     var dkim = await auditDkim(domain, resolver, selectors, selectorConfig);
+    scoreBreakdown = calculateScoreBreakdown(foundation[0], foundation[1], dkim, foundation[2]);
 
     report = {
       domain: domain,
@@ -408,7 +500,8 @@
       mx: foundation[2],
       extras: foundation[3],
       dkim: dkim,
-      score: calculateScore(foundation[0], foundation[1], dkim, foundation[2])
+      score: scoreBreakdown.total,
+      scoreBreakdown: scoreBreakdown.items
     };
 
     report.recommendations = buildRecommendations(report);
@@ -1008,12 +1101,36 @@
   }
 
   function calculateScore(spf, dmarc, dkim, mx) {
-    return Math.round(
-      scorePart(spf.status, 25) +
-        scorePart(dmarc.status, 35) +
-        scorePart(dkim.status, 30) +
-        scorePart(mx.status, 10)
-    );
+    return calculateScoreBreakdown(spf, dmarc, dkim, mx).total;
+  }
+
+  function calculateScoreBreakdown(spf, dmarc, dkim, mx) {
+    var items = [
+      scoreBreakdownItem("SPF", spf.status, 25, spf.message),
+      scoreBreakdownItem("DMARC", dmarc.status, 35, dmarc.message),
+      scoreBreakdownItem("DKIM", dkim.status, 30, dkim.message),
+      scoreBreakdownItem("MX", mx.status, 10, mx.message)
+    ];
+
+    return {
+      total: Math.round(
+        items.reduce(function (sum, item) {
+          return sum + item.points;
+        }, 0)
+      ),
+      items: items
+    };
+  }
+
+  function scoreBreakdownItem(label, status, max, message) {
+    return {
+      label: label,
+      status: status,
+      statusLabel: statusLabel(status),
+      points: Math.round(scorePart(status, max)),
+      max: max,
+      message: message
+    };
   }
 
   function scorePart(status, max) {
@@ -1371,6 +1488,7 @@
 
   function renderReport(report) {
     renderSummary(report);
+    renderScorePanel(report);
     renderStandardPanel(els.panels.spf, report.spf);
     renderStandardPanel(els.panels.dmarc, report.dmarc);
     renderDkimPanel(report.dkim);
@@ -1378,6 +1496,34 @@
     renderExtrasPanel(report.extras);
     renderRecommendationsPanel(report.recommendations || []);
     els.reportActions.hidden = false;
+  }
+
+  function renderScorePanel(report) {
+    els.panels.score.innerHTML =
+      renderPanelHead(t("score"), t("scoreSubtitle"), scoreStatus(report.score)) +
+      '<div class="panel-body">' +
+      '<ul class="score-list">' +
+      (report.scoreBreakdown || [])
+        .map(function (item) {
+          var width = item.max === 0 ? 0 : Math.round((item.points / item.max) * 100);
+
+          return (
+            '<li class="score-item">' +
+            '<div><span class="score-name">' +
+            escapeHtml(item.label) +
+            '</span><div class="muted-text">' +
+            escapeHtml(statusLabel(item.status)) +
+            "</div></div>" +
+            '<div class="score-bar" aria-hidden="true"><span style="--score-width: ' +
+            width +
+            '%"></span></div>' +
+            '<div class="score-value">' +
+            escapeHtml(item.points + " / " + item.max) +
+            "</div></li>"
+          );
+        })
+        .join("") +
+      "</ul></div>";
   }
 
   function renderSummary(report) {
@@ -1655,6 +1801,7 @@
     els.summary.hidden = true;
     els.reportActions.hidden = true;
     els.summary.innerHTML = "";
+    els.panels.score.innerHTML = '<div class="empty-state">Score</div>';
     els.panels.spf.innerHTML = '<div class="empty-state">SPF</div>';
     els.panels.dmarc.innerHTML = '<div class="empty-state">DMARC</div>';
     els.panels.dkim.innerHTML = '<div class="empty-state">DKIM</div>';
@@ -1714,11 +1861,13 @@
     var exportReport = buildExportReport(report);
     var domainLabel = currentLang === "en" ? "Domain" : "Dominio";
     var dateLabel = currentLang === "en" ? "Date" : "Fecha";
+    var linkLabel = currentLang === "en" ? "Share URL" : "Enlace";
 
     return [
       "MailShield Radar",
       domainLabel + ": " + exportReport.domain,
       dateLabel + ": " + exportReport.checkedAt,
+      linkLabel + ": " + exportReport.shareUrl,
       "Score: " + exportReport.score + "/100",
       "SPF: " + statusLabel(exportReport.spf.status) + " - " + exportReport.spf.message,
       "DMARC: " + statusLabel(exportReport.dmarc.status) + " - " + exportReport.dmarc.message,
@@ -1768,7 +1917,18 @@
       domain: report.domain,
       checkedAt: report.checkedAt,
       resolver: report.resolver,
+      shareUrl: buildShareUrl(report.domain),
       score: report.score,
+      scoreBreakdown: (report.scoreBreakdown || []).map(function (item) {
+        return {
+          label: item.label,
+          status: item.status,
+          statusLabel: statusLabel(item.status),
+          points: item.points,
+          max: item.max,
+          message: localizeText(item.message)
+        };
+      }),
       spf: compactStandardResult(report.spf),
       dmarc: compactStandardResult(report.dmarc),
       dkim: compactDkimResult(report.dkim),
@@ -1904,6 +2064,7 @@
             domain: "Domain",
             checkedAt: "Checked at",
             resolver: "Resolver",
+            shareUrl: "Share URL",
             score: "Score",
             findings: "Findings",
             records: "Records",
@@ -1913,12 +2074,14 @@
             summary: "Summary",
             noDkim: "No DKIM selectors responded.",
             noExtras: "No optional extras were found.",
+            points: "Points",
             recommendations: "Recommendations"
           }
         : {
             domain: "Dominio",
             checkedAt: "Fecha",
             resolver: "Resolver",
+            shareUrl: "Enlace",
             score: "Score",
             findings: "Hallazgos",
             records: "Registros",
@@ -1928,6 +2091,7 @@
             summary: "Resumen",
             noDkim: "No se encontraron selectores DKIM con respuesta.",
             noExtras: "No se encontraron complementos opcionales publicados.",
+            points: "Puntos",
             recommendations: "Recomendaciones"
           };
     var lines = [
@@ -1936,12 +2100,23 @@
       "- " + labels.domain + ": `" + data.domain + "`",
       "- " + labels.checkedAt + ": `" + data.checkedAt + "`",
       "- " + labels.resolver + ": `" + data.resolver + "`",
+      "- " + labels.shareUrl + ": " + data.shareUrl,
       "- " + labels.score + ": `" + data.score + "/100`",
+      "",
+      "## " + labels.score,
+      ""
+    ];
+
+    data.scoreBreakdown.forEach(function (item) {
+      lines.push("- **" + item.label + "** `" + item.points + "/" + item.max + "` " + statusLabel(item.status) + ": " + item.message);
+    });
+
+    lines.push(
       "",
       "## SPF",
       "",
       statusLine(data.spf, labels)
-    ];
+    );
 
     appendFindings(lines, data.spf.findings, labels);
     appendTxtRecords(lines, data.spf.records || [], labels);
