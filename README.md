@@ -66,14 +66,6 @@ Las consultas DNS se hacen desde el navegador hacia Google DNS o Cloudflare DNS 
 
 La preferencia de idioma y tema se guarda localmente en el navegador mediante `localStorage`.
 
-## Roadmap
-
-- SPF recursivo con expansion de `include`.
-- Presets DKIM por proveedor.
-- Historial local de dominios analizados.
-- Validacion mas profunda de tags DMARC.
-- CI con GitHub Actions para validar cambios.
-
 ## Autor
 
 Hecho por Luis Daniel (Juguitos): https://github.com/Juguitos
