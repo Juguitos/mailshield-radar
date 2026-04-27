@@ -100,6 +100,7 @@
       extraSelectorsAria: "Selectores DKIM extra",
       extraSelectorsPlaceholder: "selector1, selector2, google, k1",
       footerMade: "Hecho por Luis Daniel (Juguitos)",
+      failure: "Falla",
       languageLabel: "Cambiar idioma",
       languageToggle: "English",
       lightMode: "Modo claro",
@@ -111,6 +112,8 @@
       sample: "Ejemplo",
       score: "Score",
       scoreSubtitle: "Desglose de puntos por control.",
+      statusLegend: "Estados",
+      warning: "Aviso",
       selectorAria: "Selectores DKIM especificos",
       selectorLabel: "Selector(es) DKIM",
       selectorPlaceholder: "selector1, google, k1",
@@ -146,6 +149,7 @@
       extraSelectorsAria: "Extra DKIM selectors",
       extraSelectorsPlaceholder: "selector1, selector2, google, k1",
       footerMade: "Made by Luis Daniel (Juguitos)",
+      failure: "Fail",
       languageLabel: "Change language",
       languageToggle: "Español",
       lightMode: "Light mode",
@@ -157,6 +161,8 @@
       sample: "Sample",
       score: "Score",
       scoreSubtitle: "Point breakdown by control.",
+      statusLegend: "Status",
+      warning: "Warning",
       selectorAria: "Specific DKIM selectors",
       selectorLabel: "DKIM selector(s)",
       selectorPlaceholder: "selector1, google, k1",
@@ -1508,7 +1514,9 @@
           var width = item.max === 0 ? 0 : Math.round((item.points / item.max) * 100);
 
           return (
-            '<li class="score-item">' +
+            '<li class="score-item ' +
+            item.status +
+            '">' +
             '<div><span class="score-name">' +
             escapeHtml(item.label) +
             '</span><div class="muted-text">' +
@@ -1543,7 +1551,9 @@
     els.summary.innerHTML = cards
       .map(function (card) {
         return (
-          '<article class="summary-card">' +
+          '<article class="summary-card ' +
+          card.status +
+          '">' +
           '<div class="summary-label"><span>' +
           escapeHtml(card.label) +
           '</span><span class="status-dot ' +
@@ -1599,7 +1609,9 @@
       result.checks
         .map(function (check) {
           return (
-            '<li class="compact-item"><span class="status-dot ' +
+            '<li class="compact-item ' +
+            check.status +
+            '"><span class="status-dot ' +
             check.status +
             '"></span><div><strong>' +
             escapeHtml(check.label) +
@@ -1624,7 +1636,9 @@
       recommendations
         .map(function (item) {
           return (
-            '<li class="recommendation">' +
+            '<li class="recommendation ' +
+            item.status +
+            '">' +
             '<div><span class="badge ' +
             item.status +
             '">' +
@@ -1660,7 +1674,9 @@
       visible
         .map(function (item) {
           return (
-            '<li class="dkim-row">' +
+            '<li class="dkim-row ' +
+            item.status +
+            '">' +
             '<div class="dkim-selector">' +
             escapeHtml(item.selector) +
             '</div><div class="dkim-detail"><strong>' +
@@ -1723,7 +1739,9 @@
 
   function renderPanelHead(title, subtitle, status) {
     return (
-      '<div class="panel-head"><div><h2 class="panel-title">' +
+      '<div class="panel-head ' +
+      status +
+      '"><div><h2 class="panel-title">' +
       escapeHtml(localizeText(title)) +
       '</h2><p class="panel-subtitle">' +
       escapeHtml(localizeText(subtitle)) +
@@ -1763,7 +1781,9 @@
       findings
         .map(function (finding) {
           return (
-            '<li class="finding"><span class="status-dot ' +
+            '<li class="finding ' +
+            finding.status +
+            '"><span class="status-dot ' +
             finding.status +
             '"></span><span>' +
             escapeHtml(localizeText(finding.text)) +
