@@ -76,6 +76,8 @@
   var UI_TEXT = {
     es: {
       analyze: "Analizar",
+      additionalEvidence: "Adicional",
+      additionalEvidenceSubtitle: "Complementos, recomendaciones y riesgos para contexto posterior.",
       automatic: "Automatico",
       broad: "Amplia",
       copied: "Copiado",
@@ -133,6 +135,8 @@
     },
     en: {
       analyze: "Analyze",
+      additionalEvidence: "Additional",
+      additionalEvidenceSubtitle: "Extras, recommendations, and risks for follow-up context.",
       automatic: "Automatic",
       broad: "Broad",
       copied: "Copied",

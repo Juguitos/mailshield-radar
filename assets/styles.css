@@ -383,7 +383,12 @@ body.report-mode .site-footer,
 body.report-mode .theme-toggle,
 body.report-mode .language-toggle,
 body.report-mode .status-pill,
-body.report-mode .status-legend {
+body.report-mode .status-legend,
+body.report-mode .copy-section-button,
+body.report-mode .additional-separator,
+body.report-mode #extrasPanel,
+body.report-mode #recommendationsPanel,
+body.report-mode #risksPanel {
   display: none;
 }
 
@@ -393,6 +398,31 @@ body.report-mode .masthead {
 
 body.report-mode .masthead-actions {
   margin-left: auto;
+}
+
+body.report-mode .result-panel {
+  min-height: unset;
+}
+
+body.report-mode .panel-head {
+  padding: 12px;
+}
+
+body.report-mode .panel-body {
+  gap: 8px;
+  padding: 12px;
+}
+
+body.report-mode .spf-trace {
+  display: none;
+}
+
+body.report-mode .dkim-row:nth-child(n+4) {
+  display: none;
+}
+
+body.report-mode .dkim-row .record-list {
+  display: none;
 }
 
 .report-snapshot {
@@ -545,6 +575,29 @@ body.report-mode .report-snapshot:not([hidden]) {
   gap: 10px;
 }
 
+.section-separator {
+  display: grid;
+  gap: 3px;
+  margin: 10px 0 2px;
+  padding: 12px 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 72%, transparent);
+}
+
+.section-separator span {
+  color: var(--accent-strong);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.section-separator p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
 .result-panel {
   display: grid;
   grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
@@ -688,36 +741,55 @@ body.report-mode .report-snapshot:not([hidden]) {
   color: var(--accent-strong);
 }
 
-.badge.pass,
-.status-dot.pass {
+.badge.pass {
   background: var(--pass-bg);
   color: var(--green);
 }
 
-.badge.warn,
-.status-dot.warn {
+.badge.warn {
   background: var(--warn-bg);
   color: var(--amber);
 }
 
-.badge.fail,
-.status-dot.fail {
+.badge.fail {
   background: var(--fail-bg);
   color: var(--red);
 }
 
-.badge.info,
-.status-dot.info {
+.badge.info {
   background: var(--info-bg);
   color: var(--blue);
 }
 
+.status-dot.pass {
+  background: var(--green);
+  border-color: color-mix(in srgb, var(--green) 80%, #000000);
+}
+
+.status-dot.warn {
+  background: var(--amber);
+  border-color: color-mix(in srgb, var(--amber) 80%, #000000);
+}
+
+.status-dot.fail {
+  background: var(--red);
+  border-color: color-mix(in srgb, var(--red) 80%, #000000);
+}
+
+.status-dot.info {
+  background: var(--blue);
+  border-color: color-mix(in srgb, var(--blue) 80%, #000000);
+}
+
 .status-dot {
   display: inline-flex;
-  width: 10px;
-  height: 10px;
-  margin-top: 4px;
-  border-radius: 2px;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
 }
 
 .finding-list,
