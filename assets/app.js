@@ -78,12 +78,14 @@
       analyze: "Analizar",
       automatic: "Automatico",
       broad: "Amplia",
-      copied: "Resumen copiado",
+      copied: "Copiado",
       linkCopied: "Enlace copiado",
       linkCopyFailed: "No se pudo copiar enlace",
       copyFailed: "No se pudo copiar",
       copyLink: "Copiar enlace",
       copySummary: "Copiar resumen",
+      copyEvidence: "Copiar evidencia",
+      cveFollowUp: "Seguimiento CVE",
       coverage: "Cobertura",
       darkModeLabel: "Cambiar modo oscuro",
       dkim: "DKIM",
@@ -106,12 +108,18 @@
       lightMode: "Modo claro",
       noAnalysis: "No se pudo completar el analisis.",
       ready: "Listo",
+      reportMode: "Modo reporte",
+      reportModeExit: "Vista normal",
+      reportSnapshot: "Datos del reporte",
       recommendations: "Recomendaciones",
       recommendationsSubtitle: "Acciones sugeridas al final del analisis.",
       resolver: "Resolver",
       sample: "Ejemplo",
       score: "Score",
       scoreSubtitle: "Desglose de puntos por control.",
+      severity: "Severidad",
+      risks: "Riesgos y CVEs",
+      risksSubtitle: "Exposiciones inferidas por DNS y busquedas CVE que requieren validacion de version.",
       statusLegend: "Estados",
       warning: "Aviso",
       selectorAria: "Selectores DKIM especificos",
@@ -127,12 +135,14 @@
       analyze: "Analyze",
       automatic: "Automatic",
       broad: "Broad",
-      copied: "Summary copied",
+      copied: "Copied",
       linkCopied: "Link copied",
       linkCopyFailed: "Could not copy link",
       copyFailed: "Could not copy",
       copyLink: "Copy link",
       copySummary: "Copy summary",
+      copyEvidence: "Copy evidence",
+      cveFollowUp: "CVE follow-up",
       coverage: "Coverage",
       darkModeLabel: "Toggle dark mode",
       dkim: "DKIM",
@@ -155,12 +165,18 @@
       lightMode: "Light mode",
       noAnalysis: "The analysis could not be completed.",
       ready: "Ready",
+      reportMode: "Report mode",
+      reportModeExit: "Normal view",
+      reportSnapshot: "Report data",
       recommendations: "Recommendations",
       recommendationsSubtitle: "Suggested actions at the end of the analysis.",
       resolver: "Resolver",
       sample: "Sample",
       score: "Score",
       scoreSubtitle: "Point breakdown by control.",
+      severity: "Severity",
+      risks: "Risks and CVEs",
+      risksSubtitle: "DNS-inferred exposure and CVE searches that require version validation.",
       statusLegend: "Status",
       warning: "Warning",
       selectorAria: "Specific DKIM selectors",
@@ -188,7 +204,9 @@
     themeToggleText: document.getElementById("themeToggleText"),
     languageToggle: document.getElementById("languageToggle"),
     languageToggleText: document.getElementById("languageToggleText"),
+    reportModeToggle: document.getElementById("reportModeToggle"),
     summary: document.getElementById("summary"),
+    reportSnapshot: document.getElementById("reportSnapshot"),
     reportActions: document.getElementById("reportActions"),
     copyReportButton: document.getElementById("copyReportButton"),
     copyLinkButton: document.getElementById("copyLinkButton"),
@@ -201,7 +219,8 @@
       dkim: document.getElementById("dkimPanel"),
       mx: document.getElementById("mxPanel"),
       extras: document.getElementById("extrasPanel"),
-      recommendations: document.getElementById("recommendationsPanel")
+      recommendations: document.getElementById("recommendationsPanel"),
+      risks: document.getElementById("risksPanel")
     }
   };
 
@@ -210,6 +229,7 @@
 
   initLanguage();
   initTheme();
+  initReportMode();
   applyUrlState();
   updateSelectorUi();
 
@@ -236,6 +256,18 @@
     var nextLang = currentLang === "es" ? "en" : "es";
     applyLanguage(nextLang, true);
     syncShareUrl();
+  });
+
+  els.reportModeToggle.addEventListener("click", function () {
+    applyReportMode(!document.body.classList.contains("report-mode"), true);
+    syncShareUrl();
+  });
+
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest("[data-copy-section]");
+
+    if (!button || !lastReport) return;
+    copyText(buildSectionEvidence(lastReport, button.getAttribute("data-copy-section")));
   });
 
   Array.from(document.querySelectorAll('input[name="selectorStrategy"]')).forEach(function (input) {
@@ -290,6 +322,36 @@
     }
   }
 
+  function initReportMode() {
+    var savedMode = "";
+
+    try {
+      savedMode = window.localStorage.getItem("mailshield-report-mode") || "";
+    } catch (error) {
+      savedMode = "";
+    }
+
+    applyReportMode(savedMode === "1", false);
+  }
+
+  function applyReportMode(enabled, persist) {
+    document.body.classList.toggle("report-mode", enabled);
+    els.reportModeToggle.setAttribute("aria-pressed", enabled ? "true" : "false");
+    els.reportModeToggle.textContent = enabled ? t("reportModeExit") : t("reportMode");
+
+    if (lastReport) {
+      renderReportSnapshot(lastReport);
+    }
+
+    if (persist) {
+      try {
+        window.localStorage.setItem("mailshield-report-mode", enabled ? "1" : "0");
+      } catch (error) {
+        return;
+      }
+    }
+  }
+
   function initLanguage() {
     var savedLang = "";
 
@@ -311,6 +373,7 @@
     els.languageToggleText.textContent = t("languageToggle");
     updateStaticText();
     updateThemeText();
+    applyReportMode(document.body.classList.contains("report-mode"), false);
     updateSelectorUi();
 
     if (!lastReport) {
@@ -375,6 +438,7 @@
     var dkim = params.get("dkim");
     var depth = params.get("depth");
     var selectors = params.get("selectors");
+    var reportMode = params.get("report");
 
     if (lang) applyLanguage(lang, false);
     if (theme) applyTheme(theme, false);
@@ -390,6 +454,9 @@
     }
     if (selectors) {
       els.customSelectors.value = selectors;
+    }
+    if (reportMode === "1") {
+      applyReportMode(true, false);
     }
 
     updateSelectorUi();
@@ -414,6 +481,7 @@
     params.set("dkim", strategy);
     if (strategy === "auto") params.set("depth", els.selectorDepth.value);
     if (selectors) params.set("selectors", selectors);
+    if (document.body.classList.contains("report-mode")) params.set("report", "1");
 
     url.search = params.toString();
     url.hash = "";
@@ -511,6 +579,7 @@
     };
 
     report.recommendations = buildRecommendations(report);
+    report.risks = buildRiskAssessment(report);
 
     return report;
   }
@@ -544,7 +613,8 @@
 
     var primary = spfRecords[0].text;
     var allMatch = primary.match(/(^|\s)([+?~-])all(\s|$)/i);
-    var lookupMechanisms = collectSpfLookups(primary);
+    var spfTrace = await analyzeSpfTree(domain, primary, resolver, [], 0);
+    var lookupCount = spfTrace.totalLookups;
     var includes = collectSpfIncludes(primary);
 
     if (!allMatch) {
@@ -568,21 +638,27 @@
       findings.push({ status: "warn", text: "El mecanismo ptr es costoso y suele evitarse en SPF moderno." });
     }
 
-    if (lookupMechanisms.length > 10) {
+    if (lookupCount > 10) {
       status = "fail";
-      findings.push({ status: "fail", text: "La politica supera el limite teorico de 10 consultas DNS de SPF." });
-    } else if (lookupMechanisms.length >= 8) {
+      findings.push({ status: "fail", text: "La politica supera el limite real estimado de 10 consultas DNS de SPF." });
+    } else if (lookupCount >= 8) {
       status = worstStatus(status, "warn");
       findings.push({ status: "warn", text: "La politica esta cerca del limite de 10 consultas DNS de SPF." });
     }
+
+    collectSpfTraceFindings(spfTrace).forEach(function (finding) {
+      status = worstStatus(status, finding.status);
+      findings.push(finding);
+    });
 
     if (findings.length === 0) {
       findings.push({ status: "pass", text: "No se detectaron riesgos basicos en la politica SPF." });
     }
 
     meta.push({ label: "Registros SPF", value: String(spfRecords.length) });
-    meta.push({ label: "Consultas SPF", value: String(lookupMechanisms.length) + " / 10" });
+    meta.push({ label: "Consultas SPF", value: String(lookupCount) + " / 10" });
     meta.push({ label: "Includes", value: includes.length ? includes.join(", ") : "Ninguno" });
+    meta.push({ label: "SPF recursivo", value: spfTrace.expanded + " dominio(s)" });
 
     return {
       title: "SPF",
@@ -590,7 +666,8 @@
       message: message,
       findings: findings,
       records: spfRecords,
-      meta: meta
+      meta: meta,
+      spfTrace: spfTrace
     };
   }
 
@@ -1045,6 +1122,125 @@
     });
   }
 
+  function collectSpfRedirects(record) {
+    var matches = record.match(/\bredirect=([^\s]+)/gi) || [];
+    return matches.map(function (item) {
+      return item.replace(/^redirect=/i, "");
+    });
+  }
+
+  async function analyzeSpfTree(domain, record, resolver, seen, depth) {
+    var normalized = domain.toLowerCase();
+    var lookupTokens = collectSpfLookups(record);
+    var refs = collectSpfIncludes(record)
+      .map(function (value) {
+        return { type: "include", domain: value.toLowerCase() };
+      })
+      .concat(
+        collectSpfRedirects(record).map(function (value) {
+          return { type: "redirect", domain: value.toLowerCase() };
+        })
+      );
+    var node = {
+      domain: normalized,
+      record: record,
+      directLookups: lookupTokens.length,
+      totalLookups: lookupTokens.length,
+      expanded: 1,
+      refs: refs,
+      children: [],
+      warnings: []
+    };
+
+    if (seen.indexOf(normalized) !== -1) {
+      node.directLookups = 0;
+      node.totalLookups = 0;
+      node.warnings.push({ status: "warn", text: "Bucle SPF detectado en " + normalized + "." });
+      return node;
+    }
+
+    if (depth >= 6) {
+      node.warnings.push({ status: "warn", text: "Profundidad SPF maxima alcanzada en " + normalized + "." });
+      return node;
+    }
+
+    for (var i = 0; i < refs.length; i += 1) {
+      var ref = refs[i];
+      var child = {
+        type: ref.type,
+        domain: ref.domain,
+        directLookups: 0,
+        totalLookups: 0,
+        expanded: 0,
+        children: [],
+        warnings: []
+      };
+      var childRecords;
+      var childTrace;
+
+      try {
+        childRecords = await loadSpfRecords(ref.domain, resolver);
+        child.records = childRecords;
+
+        if (childRecords.length === 0) {
+          child.warnings.push({ status: "warn", text: labelSpfRef(ref.type) + " SPF sin registro en " + ref.domain + "." });
+        } else {
+          if (childRecords.length > 1) {
+            child.warnings.push({
+              status: "warn",
+              text: labelSpfRef(ref.type) + " SPF con multiples registros en " + ref.domain + "."
+            });
+          }
+
+          childTrace = await analyzeSpfTree(ref.domain, childRecords[0].text, resolver, seen.concat([normalized]), depth + 1);
+          child.record = childRecords[0].text;
+          child.directLookups = childTrace.directLookups;
+          child.totalLookups = childTrace.totalLookups;
+          child.expanded = childTrace.expanded;
+          child.refs = childTrace.refs;
+          child.children = childTrace.children;
+          child.warnings = child.warnings.concat(childTrace.warnings);
+          node.totalLookups += childTrace.totalLookups;
+          node.expanded += childTrace.expanded;
+        }
+      } catch (error) {
+        child.warnings.push({
+          status: "warn",
+          text: "No se pudo expandir " + ref.type + " SPF " + ref.domain + ": " + error.message
+        });
+      }
+
+      node.children.push(child);
+      node.warnings = node.warnings.concat(child.warnings);
+    }
+
+    return node;
+  }
+
+  async function loadSpfRecords(domain, resolver) {
+    var txt = await queryTxt(domain, resolver);
+
+    return txt.records.filter(function (record) {
+      return /^v=spf1(\s|$)/i.test(record.text);
+    });
+  }
+
+  function collectSpfTraceFindings(trace) {
+    var seen = {};
+
+    return (trace.warnings || []).filter(function (warning) {
+      var key = warning.status + ":" + warning.text;
+
+      if (seen[key]) return false;
+      seen[key] = true;
+      return true;
+    });
+  }
+
+  function labelSpfRef(type) {
+    return type === "redirect" ? "Redirect" : "Include";
+  }
+
   function isDkimText(text) {
     return /^v=DKIM1(\s*;|$)/i.test(text) || /(^|;)\s*p=/i.test(text);
   }
@@ -1290,6 +1486,209 @@
     return "Control opcional: evalua si aporta valor para el dominio.";
   }
 
+  function buildRiskAssessment(report) {
+    var risks = [];
+    var spfText = (report.spf.records || []).map(function (record) {
+      return record.text;
+    }).join(" ");
+    var spfLower = spfText.toLowerCase();
+    var dmarcText = (report.dmarc.records || []).map(function (record) {
+      return record.text;
+    }).join(" ");
+    var dmarcTags = dmarcText ? parseTagRecord(dmarcText) : {};
+    var mtaSts = findExtraCheck(report, "MTA-STS");
+    var tlsRpt = findExtraCheck(report, "TLS-RPT");
+    var mxProducts = inferMxProducts(report.mx.records || []);
+    var mxEvidence = (report.mx.records || [])
+      .map(function (record) {
+        return record.exchange;
+      })
+      .filter(Boolean)
+      .join(", ");
+
+    if (report.spf.status === "fail") {
+      risks.push({
+        area: "SPF",
+        status: "fail",
+        severity: spfLower.indexOf("+all") !== -1 ? "critical" : "high",
+        title: spfLower.indexOf("+all") !== -1 ? "SPF permite cualquier origen." : "SPF no protege de forma confiable.",
+        impact: "Un atacante puede intentar enviar correo usando el dominio y aumentar la probabilidad de suplantacion o phishing.",
+        evidence: report.spf.message,
+        cveNote: "No hay CVE directa: es una debilidad de configuracion DNS."
+      });
+    } else if (report.spf.status === "warn") {
+      risks.push({
+        area: "SPF",
+        status: "warn",
+        severity: "medium",
+        title: "SPF requiere endurecimiento.",
+        impact: "La politica puede permitir resultados ambiguos o fallar si se rebasa el limite de consultas DNS.",
+        evidence: report.spf.message,
+        cveNote: "No hay CVE directa: valida proveedores autorizados y el conteo SPF recursivo."
+      });
+    }
+
+    if (report.dmarc.status === "fail" || (dmarcTags.p || "").toLowerCase() === "none") {
+      risks.push({
+        area: "DMARC",
+        status: report.dmarc.status === "fail" ? "fail" : "warn",
+        severity: report.dmarc.status === "fail" ? "high" : "medium",
+        title: report.dmarc.status === "fail" ? "DMARC no esta publicado." : "DMARC esta en monitoreo.",
+        impact: "Los receptores no tienen una politica fuerte para rechazar mensajes que fallen autenticacion y alineacion.",
+        evidence: report.dmarc.message,
+        cveNote: "No hay CVE directa: el riesgo es abuso de identidad del dominio."
+      });
+    } else if ((dmarcTags.p || "").toLowerCase() === "quarantine") {
+      risks.push({
+        area: "DMARC",
+        status: "warn",
+        severity: "low",
+        title: "DMARC no esta en rechazo completo.",
+        impact: "Parte del abuso puede terminar en cuarentena en vez de ser rechazado directamente.",
+        evidence: "p=quarantine",
+        cveNote: "No hay CVE directa."
+      });
+    }
+
+    if (report.dkim.status === "fail") {
+      risks.push({
+        area: "DKIM",
+        status: "fail",
+        severity: "medium",
+        title: "DKIM no fue detectado.",
+        impact: "El dominio pierde una senal criptografica importante para demostrar integridad y alineacion del correo legitimo.",
+        evidence: report.dkim.message,
+        cveNote: "No hay CVE directa: confirma selectores reales del proveedor."
+      });
+    } else if (report.dkim.status === "warn") {
+      risks.push({
+        area: "DKIM",
+        status: "warn",
+        severity: "low",
+        title: "DKIM tiene observaciones.",
+        impact: "Selectores duplicados, llaves vacias o modo prueba pueden causar fallas de autenticacion.",
+        evidence: report.dkim.message,
+        cveNote: "No hay CVE directa."
+      });
+    }
+
+    if (report.mx.status === "fail") {
+      risks.push({
+        area: "MX",
+        status: "fail",
+        severity: "medium",
+        title: "El dominio no anuncia recepcion de correo.",
+        impact: "Puede haber perdida de mensajes o una separacion incompleta entre dominios de envio y recepcion.",
+        evidence: report.mx.message,
+        cveNote: "Sin MX no se puede inferir producto MTA para busqueda CVE."
+      });
+    }
+
+    if (report.mx.status === "pass" && mtaSts && mtaSts.status === "info") {
+      risks.push({
+        area: "MTA-STS",
+        status: "info",
+        severity: "low",
+        title: "MTA-STS no esta publicado.",
+        impact: "La entrega SMTP entrante puede depender de TLS oportunista sin politica publicada contra degradacion.",
+        evidence: mtaSts.name,
+        cveNote: "No hay CVE directa: es un control de transporte."
+      });
+    }
+
+    if (report.mx.status === "pass" && tlsRpt && tlsRpt.status === "info") {
+      risks.push({
+        area: "TLS-RPT",
+        status: "info",
+        severity: "info",
+        title: "TLS-RPT no esta publicado.",
+        impact: "No recibiras telemetria estandar de fallas TLS en entrega SMTP.",
+        evidence: tlsRpt.name,
+        cveNote: "No hay CVE directa."
+      });
+    }
+
+    if (report.mx.status === "pass" && mxProducts.length === 0) {
+      risks.push({
+        area: "CVE",
+        status: "info",
+        severity: "info",
+        title: "Producto MTA no inferido desde MX.",
+        impact: "DNS no expone software ni version; las CVEs requieren revisar banner SMTP, proveedor o inventario.",
+        evidence: mxEvidence || report.mx.message,
+        cveNote: "Haz busqueda CVE despues de confirmar producto y version."
+      });
+    }
+
+    mxProducts.forEach(function (product) {
+      risks.push({
+        area: "CVE",
+        status: "info",
+        severity: "info",
+        title: "Busqueda CVE sugerida: " + product.name + ".",
+        impact: "El hostname MX sugiere este proveedor o producto, pero DNS no confirma version ni exposicion.",
+        evidence: product.evidence,
+        cveNote: "Confirma banner/version del servicio antes de asociar CVEs.",
+        cveSearch: nvdSearchUrl(product.query)
+      });
+    });
+
+    if (risks.length === 0) {
+      risks.push({
+        area: "OK",
+        status: "pass",
+        severity: "info",
+        title: "Sin riesgos altos inferidos por DNS.",
+        impact: "Los controles revisados no muestran exposiciones evidentes desde esta vista DNS.",
+        evidence: "Score " + report.score + "/100",
+        cveNote: "No se puede descartar CVEs sin inventario de software y versiones."
+      });
+    }
+
+    return risks;
+  }
+
+  function findExtraCheck(report, label) {
+    return (report.extras.checks || []).filter(function (check) {
+      return check.label === label;
+    })[0];
+  }
+
+  function inferMxProducts(records) {
+    var candidates = [
+      { match: /google(mail)?\.com$/i, name: "Google Workspace / Gmail MX", query: "Google Workspace Gmail SMTP" },
+      { match: /protection\.outlook\.com$/i, name: "Microsoft 365 / Exchange Online", query: "Microsoft Exchange Online" },
+      { match: /mimecast/i, name: "Mimecast", query: "Mimecast email security" },
+      { match: /pphosted|proofpoint/i, name: "Proofpoint", query: "Proofpoint email protection" },
+      { match: /messagelabs|symantec/i, name: "Broadcom Symantec Email Security", query: "Symantec Email Security" },
+      { match: /zoho/i, name: "Zoho Mail", query: "Zoho Mail" },
+      { match: /protonmail|proton\.ch/i, name: "Proton Mail", query: "Proton Mail" },
+      { match: /zimbra/i, name: "Zimbra", query: "Zimbra Collaboration" },
+      { match: /secureserver|outlook\.secureserver/i, name: "GoDaddy Mail", query: "GoDaddy email" }
+    ];
+    var seen = {};
+
+    return records.reduce(function (items, record) {
+      var exchange = record.exchange || "";
+
+      candidates.forEach(function (candidate) {
+        if (!candidate.match.test(exchange) || seen[candidate.name]) return;
+        seen[candidate.name] = true;
+        items.push({
+          name: candidate.name,
+          query: candidate.query,
+          evidence: exchange
+        });
+      });
+
+      return items;
+    }, []);
+  }
+
+  function nvdSearchUrl(query) {
+    return "https://nvd.nist.gov/vuln/search/results?form_type=Basic&results_type=overview&query=" + encodeURIComponent(query) + "&search_type=all";
+  }
+
   function localizeText(value) {
     var text = String(value == null ? "" : value);
     var exact;
@@ -1320,6 +1719,7 @@
       "Hereda p": "Inherits p",
       "La llave publica falta o esta vacia; puede ser un selector revocado.": "The public key is missing or empty; this may be a revoked selector.",
       "La politica esta cerca del limite de 10 consultas DNS de SPF.": "The policy is close to the 10 DNS lookup SPF limit.",
+      "La politica supera el limite real estimado de 10 consultas DNS de SPF.": "The policy exceeds the estimated real 10 DNS lookup SPF limit.",
       "La politica supera el limite teorico de 10 consultas DNS de SPF.": "The policy exceeds the theoretical 10 DNS lookup SPF limit.",
       "Los servidores receptores no tienen una politica SPF que evaluar.": "Receiving servers do not have an SPF policy to evaluate.",
       "MailShield Radar": "MailShield Radar",
@@ -1346,12 +1746,49 @@
       "Recomendaciones": "Recommendations",
       "Registros SPF": "SPF records",
       "Consultas SPF": "SPF lookups",
+      "SPF recursivo": "Recursive SPF",
+      "consultas DNS estimadas": "estimated DNS lookups",
       "TXT revisados": "TXT checked",
       "Includes": "Includes",
       "Nombre": "Name",
       "Alineacion": "Alignment",
       "SPF": "SPF",
       "SPF requiere un solo registro v=spf1 por dominio.": "SPF requires a single v=spf1 record per domain.",
+      "SPF no protege de forma confiable.": "SPF does not protect reliably.",
+      "SPF permite cualquier origen.": "SPF allows any sender.",
+      "SPF requiere endurecimiento.": "SPF needs hardening.",
+      "Un atacante puede intentar enviar correo usando el dominio y aumentar la probabilidad de suplantacion o phishing.": "An attacker may try to send mail using the domain and increase the likelihood of spoofing or phishing.",
+      "La politica puede permitir resultados ambiguos o fallar si se rebasa el limite de consultas DNS.": "The policy may allow ambiguous results or fail when the DNS lookup limit is exceeded.",
+      "No hay CVE directa: es una debilidad de configuracion DNS.": "No direct CVE: this is a DNS configuration weakness.",
+      "No hay CVE directa: valida proveedores autorizados y el conteo SPF recursivo.": "No direct CVE: validate authorized providers and the recursive SPF count.",
+      "DMARC no esta publicado.": "DMARC is not published.",
+      "DMARC esta en monitoreo.": "DMARC is in monitoring mode.",
+      "Los receptores no tienen una politica fuerte para rechazar mensajes que fallen autenticacion y alineacion.": "Receivers do not have a strong policy to reject messages that fail authentication and alignment.",
+      "No hay CVE directa: el riesgo es abuso de identidad del dominio.": "No direct CVE: the risk is domain identity abuse.",
+      "DMARC no esta en rechazo completo.": "DMARC is not in full rejection.",
+      "Parte del abuso puede terminar en cuarentena en vez de ser rechazado directamente.": "Some abuse may land in quarantine instead of being rejected directly.",
+      "No hay CVE directa.": "No direct CVE.",
+      "DKIM no fue detectado.": "DKIM was not detected.",
+      "El dominio pierde una senal criptografica importante para demostrar integridad y alineacion del correo legitimo.": "The domain loses an important cryptographic signal for legitimate mail integrity and alignment.",
+      "No hay CVE directa: confirma selectores reales del proveedor.": "No direct CVE: confirm the provider's real selectors.",
+      "DKIM tiene observaciones.": "DKIM has observations.",
+      "Selectores duplicados, llaves vacias o modo prueba pueden causar fallas de autenticacion.": "Duplicate selectors, empty keys, or test mode can cause authentication failures.",
+      "El dominio no anuncia recepcion de correo.": "The domain does not advertise mail reception.",
+      "Puede haber perdida de mensajes o una separacion incompleta entre dominios de envio y recepcion.": "Messages may be lost, or sending and receiving domains may be incompletely separated.",
+      "Sin MX no se puede inferir producto MTA para busqueda CVE.": "Without MX, no MTA product can be inferred for CVE search.",
+      "MTA-STS no esta publicado.": "MTA-STS is not published.",
+      "La entrega SMTP entrante puede depender de TLS oportunista sin politica publicada contra degradacion.": "Inbound SMTP delivery may depend on opportunistic TLS without a published downgrade-resistant policy.",
+      "No hay CVE directa: es un control de transporte.": "No direct CVE: this is a transport control.",
+      "TLS-RPT no esta publicado.": "TLS-RPT is not published.",
+      "No recibiras telemetria estandar de fallas TLS en entrega SMTP.": "You will not receive standard telemetry for TLS failures in SMTP delivery.",
+      "El hostname MX sugiere este proveedor o producto, pero DNS no confirma version ni exposicion.": "The MX hostname suggests this provider or product, but DNS does not confirm version or exposure.",
+      "Confirma banner/version del servicio antes de asociar CVEs.": "Confirm the service banner/version before associating CVEs.",
+      "Producto MTA no inferido desde MX.": "MTA product was not inferred from MX.",
+      "DNS no expone software ni version; las CVEs requieren revisar banner SMTP, proveedor o inventario.": "DNS does not expose software or version; CVEs require checking SMTP banner, provider, or inventory.",
+      "Haz busqueda CVE despues de confirmar producto y version.": "Search CVEs after confirming product and version.",
+      "Sin riesgos altos inferidos por DNS.": "No high risks inferred from DNS.",
+      "Los controles revisados no muestran exposiciones evidentes desde esta vista DNS.": "The reviewed controls do not show obvious exposure from this DNS view.",
+      "No se puede descartar CVEs sin inventario de software y versiones.": "CVEs cannot be ruled out without a software and version inventory.",
       "Sin MX, el dominio no anuncia servidores de recepcion.": "Without MX, the domain does not advertise receiving mail servers.",
       "Sin TXT DKIM": "No DKIM TXT",
       "Un registro SPF publicado.": "One SPF record is published.",
@@ -1375,6 +1812,24 @@
 
     match = text.match(/^La politica DMARC p=(.+) no es valida\.$/);
     if (match) return "The DMARC policy p=" + match[1] + " is not valid.";
+
+    match = text.match(/^Bucle SPF detectado en (.+)\.$/);
+    if (match) return "SPF loop detected at " + match[1] + ".";
+
+    match = text.match(/^Profundidad SPF maxima alcanzada en (.+)\.$/);
+    if (match) return "Maximum SPF depth reached at " + match[1] + ".";
+
+    match = text.match(/^(Include|Redirect) SPF sin registro en (.+)\.$/);
+    if (match) return match[1] + " SPF has no record at " + match[2] + ".";
+
+    match = text.match(/^(Include|Redirect) SPF con multiples registros en (.+)\.$/);
+    if (match) return match[1] + " SPF has multiple records at " + match[2] + ".";
+
+    match = text.match(/^No se pudo expandir (include|redirect) SPF (.+): (.+)$/);
+    if (match) return "Could not expand " + match[1] + " SPF " + match[2] + ": " + match[3];
+
+    match = text.match(/^Busqueda CVE sugerida: (.+)\.$/);
+    if (match) return "Suggested CVE search: " + match[1] + ".";
 
     match = text.match(/^pct=(.+) aplica DMARC solo a una parte del trafico\.$/);
     if (match) return "pct=" + match[1] + " applies DMARC to only part of the traffic.";
@@ -1494,19 +1949,48 @@
 
   function renderReport(report) {
     renderSummary(report);
+    renderReportSnapshot(report);
     renderScorePanel(report);
-    renderStandardPanel(els.panels.spf, report.spf);
+    renderSpfPanel(report.spf);
     renderStandardPanel(els.panels.dmarc, report.dmarc);
     renderDkimPanel(report.dkim);
     renderMxPanel(report.mx);
     renderExtrasPanel(report.extras);
     renderRecommendationsPanel(report.recommendations || []);
+    renderRisksPanel(report.risks || []);
     els.reportActions.hidden = false;
+  }
+
+  function renderReportSnapshot(report) {
+    var items = [
+      { label: currentLang === "en" ? "Domain" : "Dominio", value: report.domain },
+      { label: currentLang === "en" ? "Date" : "Fecha", value: formatDate(report.checkedAt) },
+      { label: "Resolver", value: report.resolver },
+      { label: "Score", value: report.score + "/100" },
+      { label: t("severity"), value: severityLabel(severityForStatus(scoreStatus(report.score))) }
+    ];
+
+    els.reportSnapshot.innerHTML =
+      '<span class="snapshot-title">' +
+      escapeHtml(t("reportSnapshot")) +
+      "</span>" +
+      items
+        .map(function (item) {
+          return (
+            '<span class="snapshot-item"><span>' +
+            escapeHtml(item.label) +
+            "</span><strong>" +
+            escapeHtml(item.value) +
+            "</strong></span>"
+          );
+        })
+        .join("");
+    els.reportSnapshot.hidden = false;
   }
 
   function renderScorePanel(report) {
     els.panels.score.innerHTML =
-      renderPanelHead(t("score"), t("scoreSubtitle"), scoreStatus(report.score)) +
+      renderPanelHead(t("score"), t("scoreSubtitle"), scoreStatus(report.score), "score") +
       '<div class="panel-body">' +
       '<ul class="score-list">' +
       (report.scoreBreakdown || [])
@@ -1532,6 +2016,17 @@
         })
         .join("") +
       "</ul></div>";
+  }
+
+  function renderSpfPanel(result) {
+    els.panels.spf.innerHTML =
+      renderPanelHead(result.title, result.message, result.status, "spf") +
+      '<div class="panel-body">' +
+      renderMeta(result.meta || []) +
+      renderFindings(result.findings || [], "SPF") +
+      renderSpfTrace(result.spfTrace) +
+      renderTxtRecords(result.records || []) +
+      "</div>";
   }
 
   function renderSummary(report) {
@@ -1574,10 +2069,10 @@
 
   function renderStandardPanel(panel, result) {
     panel.innerHTML =
-      renderPanelHead(result.title, result.message, result.status) +
+      renderPanelHead(result.title, result.message, result.status, result.title.toLowerCase()) +
       '<div class="panel-body">' +
       renderMeta(result.meta || []) +
-      renderFindings(result.findings || []) +
+      renderFindings(result.findings || [], result.title) +
       renderTxtRecords(result.records || []) +
       "</div>";
   }
@@ -1585,9 +2080,9 @@
   function renderMxPanel(result) {
     panelReplace(
       els.panels.mx,
-      renderPanelHead(result.title, result.message, result.status) +
+      renderPanelHead(result.title, result.message, result.status, "mx") +
         '<div class="panel-body">' +
-        renderFindings(result.findings || []) +
+        renderFindings(result.findings || [], "MX") +
         '<ul class="record-list">' +
         (result.records || [])
           .map(function (record) {
@@ -1604,7 +2099,7 @@
 
   function renderExtrasPanel(result) {
     els.panels.extras.innerHTML =
-      renderPanelHead(result.title, result.message, result.status) +
+      renderPanelHead(result.title, result.message, result.status, "extras") +
       '<div class="panel-body"><ul class="compact-list">' +
       result.checks
         .map(function (check) {
@@ -1630,11 +2125,13 @@
 
   function renderRecommendationsPanel(recommendations) {
     els.panels.recommendations.innerHTML =
-      renderPanelHead(t("recommendations"), t("recommendationsSubtitle"), recommendations.length ? "info" : "pass") +
+      renderPanelHead(t("recommendations"), t("recommendationsSubtitle"), recommendations.length ? "info" : "pass", "recommendations") +
       '<div class="panel-body">' +
       '<ul class="recommendation-list">' +
       recommendations
         .map(function (item) {
+          var severity = severityForRecommendation(item);
+
           return (
             '<li class="recommendation ' +
             item.status +
@@ -1643,6 +2140,10 @@
             item.status +
             '">' +
             escapeHtml(localizeText(item.area)) +
+            '</span><span class="severity-badge ' +
+            severity +
+            '">' +
+            escapeHtml(severityLabel(severity)) +
             '</span></div><div class="recommendation-body"><strong>' +
             escapeHtml(localizeText(item.finding)) +
             '</strong><span class="recommendation-text">' +
@@ -1652,6 +2153,70 @@
         })
         .join("") +
       "</ul></div>";
+  }
+
+  function renderRisksPanel(risks) {
+    els.panels.risks.innerHTML =
+      renderPanelHead(t("risks"), t("risksSubtitle"), riskPanelStatus(risks), "risks") +
+      '<div class="panel-body">' +
+      '<ul class="risk-list">' +
+      risks
+        .map(function (item) {
+          var link = item.cveSearch
+            ? '<a class="risk-link" href="' +
+              escapeHtml(item.cveSearch) +
+              '" target="_blank" rel="noreferrer">' +
+              escapeHtml(t("cveFollowUp")) +
+              "</a>"
+            : "";
+
+          return (
+            '<li class="risk-item ' +
+            item.status +
+            '">' +
+            '<div class="risk-head"><span class="badge ' +
+            item.status +
+            '">' +
+            escapeHtml(localizeText(item.area)) +
+            '</span><span class="severity-badge ' +
+            item.severity +
+            '">' +
+            escapeHtml(severityLabel(item.severity)) +
+            "</span></div>" +
+            '<div class="risk-body"><strong>' +
+            escapeHtml(localizeText(item.title)) +
+            '</strong><span>' +
+            escapeHtml(localizeText(item.impact)) +
+            '</span><code>' +
+            escapeHtml(localizeText(item.evidence)) +
+            '</code><span class="muted-text">' +
+            escapeHtml(localizeText(item.cveNote)) +
+            "</span>" +
+            link +
+            "</div></li>"
+          );
+        })
+        .join("") +
+      "</ul></div>";
+  }
+
+  function risksContainIssues(risks) {
+    return risks.some(function (item) {
+      return item.status === "fail" || item.status === "warn";
+    });
+  }
+
+  function riskPanelStatus(risks) {
+    if (risksContainIssues(risks)) return "warn";
+    if (
+      risks.some(function (item) {
+        return item.status === "info";
+      })
+    ) {
+      return "info";
+    }
+
+    return "pass";
   }
 
   function renderDkimPanel(result) {
@@ -1665,7 +2230,7 @@
     }
 
     els.panels.dkim.innerHTML =
-      renderPanelHead(result.title, result.message, result.status) +
+      renderPanelHead(result.title, result.message, result.status, "dkim") +
       '<div class="panel-body">' +
       '<div class="dkim-toolbar"><strong>' +
       escapeHtml(localizeDkimToolbar(result.found, missingCount)) +
@@ -1737,7 +2302,58 @@
     );
   }
 
-  function renderPanelHead(title, subtitle, status) {
+  function renderSpfTrace(trace) {
+    if (!trace) return "";
+
+    return (
+      '<div class="spf-trace"><div class="section-toolbar"><strong>' +
+      escapeHtml(localizeText("SPF recursivo")) +
+      '</strong><span class="muted-text">' +
+      escapeHtml(trace.totalLookups + " / 10 " + localizeText("consultas DNS estimadas")) +
+      '</span></div><ul class="spf-tree">' +
+      renderSpfNode(trace, true) +
+      "</ul></div>"
+    );
+  }
+
+  function renderSpfNode(node, root) {
+    var children = node.children || [];
+    var label = root ? node.domain : (node.type || "include") + ": " + node.domain;
+    var tone = node.totalLookups > 10 ? "fail" : node.totalLookups >= 8 ? "warn" : "info";
+
+    return (
+      '<li class="spf-node ' +
+      tone +
+      '"><div class="spf-node-head"><span class="status-dot ' +
+      tone +
+      '"></span><div><strong>' +
+      escapeHtml(label) +
+      '</strong><div class="muted-text">' +
+      escapeHtml(node.directLookups + " directas · " + node.totalLookups + " total") +
+      "</div></div></div>" +
+      (children.length
+        ? '<ul class="spf-tree">' +
+          children
+            .map(function (child) {
+              return renderSpfNode(child, false);
+            })
+            .join("") +
+          "</ul>"
+        : "") +
+      "</li>"
+    );
+  }
+
+  function renderPanelHead(title, subtitle, status, sectionKey) {
+    var severity = severityForStatus(status);
+    var action = sectionKey
+      ? '<button type="button" class="copy-section-button" data-copy-section="' +
+        escapeHtml(sectionKey) +
+        '">' +
+        escapeHtml(t("copyEvidence")) +
+        "</button>"
+      : "";
+
     return (
       '<div class="panel-head ' +
       status +
@@ -1745,11 +2361,17 @@
       escapeHtml(localizeText(title)) +
       '</h2><p class="panel-subtitle">' +
       escapeHtml(localizeText(subtitle)) +
-      '</p></div><span class="badge ' +
+      '</p></div><div class="panel-badges"><span class="severity-badge ' +
+      severity +
+      '">' +
+      escapeHtml(severityLabel(severity)) +
+      '</span><span class="badge ' +
       status +
       '">' +
       escapeHtml(statusLabel(status)) +
-      "</span></div>"
+      "</span>" +
+      action +
+      "</div></div>"
     );
   }
 
@@ -1773,13 +2395,15 @@
     );
   }
 
-  function renderFindings(findings) {
+  function renderFindings(findings, area) {
     if (!findings.length) return "";
 
     return (
       '<ul class="finding-list">' +
       findings
         .map(function (finding) {
+          var severity = severityForFinding(area || "", finding);
+
           return (
             '<li class="finding ' +
             finding.status +
@@ -1787,6 +2411,10 @@
             finding.status +
             '"></span><span>' +
             escapeHtml(localizeText(finding.text)) +
+            '</span><span class="severity-badge ' +
+            severity +
+            '">' +
+            escapeHtml(severityLabel(severity)) +
             "</span></li>"
           );
         })
@@ -1819,8 +2447,10 @@
 
   function clearResults() {
     els.summary.hidden = true;
+    els.reportSnapshot.hidden = true;
     els.reportActions.hidden = true;
     els.summary.innerHTML = "";
+    els.reportSnapshot.innerHTML = "";
     els.panels.score.innerHTML = '<div class="empty-state">Score</div>';
     els.panels.spf.innerHTML = '<div class="empty-state">SPF</div>';
     els.panels.dmarc.innerHTML = '<div class="empty-state">DMARC</div>';
@@ -1828,6 +2458,7 @@
     els.panels.mx.innerHTML = '<div class="empty-state">MX</div>';
     els.panels.extras.innerHTML = '<div class="empty-state">MTA-STS / TLS-RPT / BIMI</div>';
     els.panels.recommendations.innerHTML = '<div class="empty-state">' + escapeHtml(t("recommendations")) + "</div>";
+    els.panels.risks.innerHTML = '<div class="empty-state">' + escapeHtml(t("risks")) + "</div>";
   }
 
   function showError(message) {
@@ -1858,10 +2489,66 @@
     return "Info";
   }
 
+  function severityLabel(severity) {
+    var labels = {
+      critical: "Critical",
+      high: "High",
+      medium: "Medium",
+      low: "Low",
+      info: "Info"
+    };
+
+    return labels[severity] || labels.info;
+  }
+
+  function severityForStatus(status) {
+    if (status === "fail") return "high";
+    if (status === "warn") return "medium";
+    if (status === "pass") return "info";
+    return "low";
+  }
+
+  function severityForFinding(area, finding) {
+    var text = String((finding && finding.text) || "").toLowerCase();
+
+    if (finding.status === "fail") {
+      if (text.indexOf("+all") !== -1 || text.indexOf("no se encontro dmarc") !== -1 || text.indexOf("falta _dmarc") !== -1) {
+        return "critical";
+      }
+      return area === "MX" ? "medium" : "high";
+    }
+
+    if (finding.status === "warn") {
+      if (text.indexOf("10 consultas") !== -1 || text.indexOf("bucle spf") !== -1) return "high";
+      return "medium";
+    }
+
+    if (finding.status === "info") return "low";
+    return "info";
+  }
+
+  function severityForRecommendation(item) {
+    return severityForFinding(item.area, {
+      status: item.status,
+      text: item.finding
+    });
+  }
+
   function scoreStatus(score) {
     if (score >= 85) return "pass";
     if (score >= 60) return "warn";
     return "fail";
+  }
+
+  function formatDate(value) {
+    try {
+      return new Intl.DateTimeFormat(currentLang === "en" ? "en-US" : "es-MX", {
+        dateStyle: "medium",
+        timeStyle: "short"
+      }).format(new Date(value));
+    } catch (error) {
+      return value;
+    }
   }
 
   function trimDot(value) {
@@ -1894,6 +2581,79 @@
       "DKIM: " + statusLabel(exportReport.dkim.status) + " - " + exportReport.dkim.message,
       "MX: " + statusLabel(exportReport.mx.status) + " - " + exportReport.mx.message
     ].join("\n");
+  }
+
+  function buildSectionEvidence(report, section) {
+    var data = buildExportReport(report);
+    var labels =
+      currentLang === "en"
+        ? { status: "Status", severity: "Severity", evidence: "Evidence", recommendation: "Recommendation" }
+        : { status: "Estado", severity: "Severidad", evidence: "Evidencia", recommendation: "Recomendacion" };
+    var lines = ["# MailShield Radar - " + section.toUpperCase(), "", "- Dominio: `" + data.domain + "`", "- Fecha: `" + data.checkedAt + "`", ""];
+
+    if (section === "score") {
+      lines.push("## Score", "", "- Score: `" + data.score + "/100`");
+      data.scoreBreakdown.forEach(function (item) {
+        lines.push("- " + item.label + ": `" + item.points + "/" + item.max + "` `" + statusLabel(item.status) + "`");
+      });
+    } else if (section === "spf") {
+      appendEvidenceStandard(lines, "SPF", data.spf, labels);
+      if (data.spf.spfTrace) {
+        lines.push("", "### SPF recursivo", "", "- Consultas estimadas: `" + data.spf.spfTrace.totalLookups + "/10`");
+      }
+    } else if (section === "dmarc") {
+      appendEvidenceStandard(lines, "DMARC", data.dmarc, labels);
+    } else if (section === "dkim") {
+      lines.push("## DKIM", "", "- " + labels.status + ": `" + statusLabel(data.dkim.status) + "`", "- Resumen: " + data.dkim.message);
+      if (data.dkim.selectors && data.dkim.selectors.length) {
+        data.dkim.selectors.forEach(function (selector) {
+          lines.push("", "### " + selector.selector, "", "- " + labels.status + ": `" + statusLabel(selector.status) + "`", "- Nombre: `" + selector.name + "`");
+          if (selector.notes && selector.notes.length) appendBullets(lines, "Notas", selector.notes);
+          appendTxtRecords(lines, selector.records || [], { records: "Registros" });
+        });
+      }
+    } else if (section === "mx") {
+      appendEvidenceStandard(lines, "MX", data.mx, labels);
+      (data.mx.records || []).forEach(function (record) {
+        lines.push("- `" + record.priority + " " + record.exchange + "`");
+      });
+    } else if (section === "extras") {
+      lines.push("## " + localizeText("Complementos"));
+      data.extras.published.forEach(function (check) {
+        lines.push("", "### " + check.label, "", "- Nombre: `" + check.name + "`", "- " + labels.status + ": `" + statusLabel(check.status) + "`");
+        appendTxtRecords(lines, check.records || [], { records: "Registros" });
+      });
+    } else if (section === "recommendations") {
+      lines.push("## " + t("recommendations"));
+      data.recommendations.forEach(function (item) {
+        lines.push("- **" + item.area + "** `" + statusLabel(item.status) + "`: " + item.finding + " " + item.recommendation);
+      });
+    } else if (section === "risks") {
+      lines.push("## " + t("risks"));
+      data.risks.forEach(function (item) {
+        lines.push(
+          "- **" +
+            item.area +
+            "** `" +
+            item.severityLabel +
+            "`: " +
+            item.title +
+            " " +
+            item.impact +
+            " " +
+            item.cveNote +
+            (item.cveSearch ? " " + item.cveSearch : "")
+        );
+      });
+    }
+
+    return lines.join("\n") + "\n";
+  }
+
+  function appendEvidenceStandard(lines, title, result, labels) {
+    lines.push("## " + title, "", "- " + labels.status + ": `" + statusLabel(result.status) + "`", "- Resumen: " + result.message);
+    appendFindings(lines, result.findings || [], { findings: "Hallazgos" });
+    appendTxtRecords(lines, result.records || [], { records: "Registros" });
   }
 
   async function copyText(text) {
@@ -1959,8 +2719,24 @@
           area: localizeText(item.area),
           status: item.status,
           statusLabel: statusLabel(item.status),
+          severity: severityForRecommendation(item),
+          severityLabel: severityLabel(severityForRecommendation(item)),
           finding: localizeText(item.finding),
           recommendation: localizeText(item.recommendation)
+        };
+      }),
+      risks: (report.risks || []).map(function (item) {
+        return {
+          area: localizeText(item.area),
+          status: item.status,
+          statusLabel: statusLabel(item.status),
+          severity: item.severity,
+          severityLabel: severityLabel(item.severity),
+          title: localizeText(item.title),
+          impact: localizeText(item.impact),
+          evidence: localizeText(item.evidence),
+          cveNote: localizeText(item.cveNote),
+          cveSearch: item.cveSearch || ""
         };
       })
     };
@@ -1976,8 +2752,30 @@
 
     if (result.meta && result.meta.length) output.meta = result.meta.map(localizeMeta);
     if (result.records && result.records.length) output.records = compactTxtRecords(result.records);
+    if (result.spfTrace) output.spfTrace = compactSpfTrace(result.spfTrace);
 
     return output;
+  }
+
+  function compactSpfTrace(trace) {
+    return {
+      type: trace.type || "",
+      domain: trace.domain,
+      directLookups: trace.directLookups,
+      totalLookups: trace.totalLookups,
+      expanded: trace.expanded,
+      refs: (trace.refs || []).map(function (ref) {
+        return { type: ref.type, domain: ref.domain };
+      }),
+      warnings: (trace.warnings || []).map(function (warning) {
+        return {
+          status: warning.status,
+          statusLabel: statusLabel(warning.status),
+          text: localizeText(warning.text)
+        };
+      }),
+      children: (trace.children || []).map(compactSpfTrace)
+    };
   }
 
   function compactMxResult(result) {
@@ -2095,7 +2893,8 @@
             noDkim: "No DKIM selectors responded.",
             noExtras: "No optional extras were found.",
             points: "Points",
-            recommendations: "Recommendations"
+            recommendations: "Recommendations",
+            risks: "Risks and CVEs"
           }
         : {
             domain: "Dominio",
@@ -2112,7 +2911,8 @@
             noDkim: "No se encontraron selectores DKIM con respuesta.",
             noExtras: "No se encontraron complementos opcionales publicados.",
             points: "Puntos",
-            recommendations: "Recomendaciones"
+            recommendations: "Recomendaciones",
+            risks: "Riesgos y CVEs"
           };
     var lines = [
       "# MailShield Radar",
@@ -2139,6 +2939,9 @@
     );
 
     appendFindings(lines, data.spf.findings, labels);
+    if (data.spf.spfTrace) {
+      lines.push("", "### SPF recursivo", "", "- " + labels.points + ": `" + data.spf.spfTrace.totalLookups + "/10 DNS lookups`");
+    }
     appendTxtRecords(lines, data.spf.records || [], labels);
 
     lines.push("", "## DKIM", "", statusLine(data.dkim, labels));
@@ -2177,7 +2980,13 @@
 
     lines.push("", "## " + labels.recommendations, "");
     data.recommendations.forEach(function (item) {
-      lines.push("- **" + item.area + "** `" + statusLabel(item.status) + "`: " + item.finding + " " + item.recommendation);
+      lines.push("- **" + item.area + "** `" + item.severityLabel + "` `" + statusLabel(item.status) + "`: " + item.finding + " " + item.recommendation);
+    });
+
+    lines.push("", "## " + labels.risks, "");
+    data.risks.forEach(function (item) {
+      lines.push("- **" + item.area + "** `" + item.severityLabel + "`: " + item.title + " " + item.impact + " " + item.cveNote);
+      if (item.cveSearch) lines.push("  " + item.cveSearch);
     });
 
     return lines.join("\n") + "\n";

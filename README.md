@@ -10,13 +10,17 @@ Demo: https://juguitos.github.io/mailshield-radar/
 
 ## Funciones
 
-- Revisa SPF en el dominio raiz.
+- Revisa SPF en el dominio raiz y expande `include` / `redirect` de forma recursiva para estimar el limite de 10 consultas DNS.
 - Revisa DMARC en `_dmarc`.
 - Revisa DKIM en modo automatico o con selector especifico.
 - Prueba selectores comunes y permite agregar selectores extra.
 - Revisa MX, MTA-STS, TLS-RPT y BIMI.
 - Muestra score con desglose por control.
+- Muestra severidad tipo `Critical`, `High`, `Medium`, `Low` e `Info`.
 - Genera recomendaciones al final del analisis.
+- Genera una seccion de riesgos y seguimiento CVE sin asignar CVEs falsas desde DNS.
+- Incluye modo reporte para capturas limpias.
+- Permite copiar evidencia por seccion en Markdown.
 - Exporta reportes en JSON y Markdown.
 - Soporta idioma espanol e ingles para UI y exportes.
 - Permite copiar un enlace compartible con la configuracion del analisis.
@@ -58,7 +62,7 @@ http://localhost:8080
 
 DKIM no permite enumerar todos los selectores desde DNS: cada selector es una etiqueta arbitraria. La app prueba una lista comun y permite agregar selectores propios.
 
-SPF se evalua de forma basica. El conteo mostrado identifica mecanismos que generan consultas DNS en el registro principal, pero no expande recursivamente todos los `include`.
+La seccion CVE es orientativa. DNS no expone versiones de software, asi que la app no asigna CVEs especificas sin evidencia. Cuando el MX sugiere un proveedor, se muestra una busqueda de seguimiento para validar manualmente contra inventario, banner SMTP o version del servicio.
 
 ## Privacidad
 
